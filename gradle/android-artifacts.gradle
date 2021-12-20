@@ -1,0 +1,40 @@
+apply plugin: 'maven-publish'
+
+android {
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+task androidJavadocs(type: Javadoc) {
+    source = android.sourceSets.main.java.sourceFiles
+    source += files('build/generated/aidl_source_output_dir/release/compileReleaseAidl/out')
+    android.libraryVariants.all { variant ->
+        if (variant.name == 'release') {
+            try {
+                owner.classpath += variant.getJavaCompileProvider().get().classpath
+            } catch(Exception e) {
+                owner.classpath += variant.getJavaCompile().classpath
+            }
+        }
+    }
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    exclude '**/BuildConfig.java'
+    exclude '**/R.java'
+}
+
+task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
+    classifier = 'javadoc'
+    from androidJavadocs.destinationDir
+}
+
+task androidSourcesJar(type: Jar) {
+    classifier = 'sources'
+    from android.sourceSets.main.java.sourceFiles
+}
+
+artifacts {
+    archives androidSourcesJar
+    archives androidJavadocsJar
+}

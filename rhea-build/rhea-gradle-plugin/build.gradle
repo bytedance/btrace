@@ -1,0 +1,31 @@
+apply plugin: 'kotlin'
+
+version POM_VERSION_NAME
+group POM_GROUP_ID
+
+dependencies {
+    compileOnly gradleApi()
+    compileOnly "com.android.tools.build:gradle:$agp_version"
+    implementation project(":rhea-common")
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+}
+
+sourceSets {
+    main {
+        kotlin {
+            srcDir 'src/main/java'
+        }
+
+        resources {
+            srcDir 'src/main/resources'
+        }
+    }
+}
+
+
+repositories {
+    google()
+    jcenter()
+}
+apply from: rootProject.file('gradle/java-artifacts.gradle')
+apply from: rootProject.file('gradle/gradle-maven-upload.gradle')

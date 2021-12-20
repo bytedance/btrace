@@ -1,0 +1,44 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.dokka:dokka-gradle-plugin:0.10.0"
+        classpath "com.bytedance.btrace:rhea-gradle-plugin:$rhea_gradle_plugin_vesion"
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+allprojects {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        jcenter()
+    }
+}
+
+subprojects {
+    apply from: rootProject.file('./gradle/checkStyle.gradle')
+}
+
+ext {
+    versions = [
+            'compileSdk': 30,
+            'buildTools': '30.0.2',
+            'minSdk'    : 16,
+            'targetSdk' : 30,
+            'ndkVersion': '21.1.6352462'
+    ]
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

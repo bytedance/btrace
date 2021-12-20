@@ -1,0 +1,120 @@
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+ext["signing.keyId"] = ''
+ext["signing.password"] = ''
+ext["signing.secretKeyRingFile"] = ''
+ext["ossrhUsername"] = ''
+ext["ossrhPassword"] = ''
+
+File secretPropsFile = project.rootProject.file('local.properties')
+if (secretPropsFile.exists()) {
+    Properties p = new Properties()
+    p.load(new FileInputStream(secretPropsFile))
+    p.each { name, value ->
+        ext[name] = value
+    }
+} else {
+    ext["signing.keyId"] = System.getenv('SIGNING_KEY_ID')
+    ext["signing.password"] = System.getenv('SIGNING_PASSWORD')
+    ext["signing.secretKeyRingFile"] = System.getenv('SIGNING_SECRET_KEY_RING_FILE')
+    ext["ossrhUsername"] = System.getenv('OSSRH_USERNAME')
+    ext["ossrhPassword"] = System.getenv('OSSRH_PASSWORD')
+}
+
+def isReleaseBuild() {
+    return !POM_VERSION_NAME.contains("SNAPSHOT")
+}
+
+def getLocalUrl() {
+    return readPropertyFromLocalProperties('LOCAL_URL')
+}
+
+def getReleaseUrl() {
+    return hasProperty('RELEASE_URL') ? RELEASE_URL : readPropertyFromLocalProperties('RELEASE_URL')
+}
+
+def getSnapshotUrl() {
+    String localUrl = getLocalUrl()
+    if (localUrl != null) {
+        return uri(localUrl)
+    }
+    return hasProperty('SNAPSHOT_URL') ? SNAPSHOT_REPOSITORY_URL : readPropertyFromLocalProperties('SNAPSHOT_URL')
+}
+
+def getOssrhUsername() {
+    return readPropertyFromLocalProperties('ossrhUsername')
+}
+
+def getOssrhPassword() {
+    return readPropertyFromLocalProperties('ossrhPassword')
+}
+
+def readPropertyFromLocalProperties(String key) {
+    Properties properties = new Properties()
+    try {
+        properties.load(project.rootProject.file('./local.properties').newDataInputStream())
+    } catch (Exception e) {
+        println("load local properties failed msg:${e.message}")
+    }
+    return properties.getProperty(key)
+}
+
+afterEvaluate { it ->
+    uploadArchives {
+        repositories {
+            mavenDeployer {
+
+                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+                pom.groupId = POM_GROUP_ID
+                pom.artifactId = POM_ARTIFACT_ID
+                pom.version = POM_VERSION_NAME
+
+                repository(url: getReleaseUrl()) {
+                    authentication(userName: getOssrhUsername(), password: getOssrhPassword())
+                }
+                snapshotRepository(url: getSnapshotUrl()) {
+                    authentication(userName: getOssrhUsername(), password: getOssrhPassword())
+                }
+
+                pom.project {
+                    name POM_NAME
+                    packaging POM_PACKAGING
+                    description POM_DESCRIPTION
+                    url POM_URL
+
+                    scm {
+                        url POM_SCM_URL
+                        connection POM_SCM_CONNECTION
+                        developerConnection POM_SCM_DEV_CONNECTION
+                    }
+
+                    licenses {
+                        license {
+                            name POM_LICENCE_NAME
+                            url POM_LICENCE_URL
+                            distribution POM_LICENCE_DIST
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id POM_DEVELOPER_ID
+                            name POM_DEVELOPER_NAME
+                            email POM_DEVELOPER_EMAIL
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    signing {
+        required { isReleaseBuild() && gradle.taskGraph.hasTask("uploadArchives") }
+        sign configurations.archives
+    }
+}
+
+tasks.getByName("uploadArchives").dependsOn tasks.getByName("checkstyle")
+

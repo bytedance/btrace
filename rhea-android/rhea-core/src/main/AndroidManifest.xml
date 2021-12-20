@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.bytedance.rheatrace.core">
+
+    <application>
+        <receiver
+            android:name=".TraceReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.bytedance.rheatrace.switch.start" />
+                <action android:name="com.bytedance.rheatrace.switch.stop" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

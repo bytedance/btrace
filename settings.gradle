@@ -1,0 +1,11 @@
+include ':rhea-gradle-plugin'
+include ':rhea-core'
+include ':rhea-atrace'
+include ':rhea-common'
+
+include ':app'
+
+project(':rhea-core').projectDir = new File("./rhea-android/rhea-core")
+project(':rhea-atrace').projectDir = new File("./rhea-android/rhea-atrace")
+project(':rhea-gradle-plugin').projectDir = new File("./rhea-build/rhea-gradle-plugin")
+rootProject.name = "RheaTrace"
