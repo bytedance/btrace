@@ -6,12 +6,12 @@
 ![](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
 ![](https://img.shields.io/badge/release-1.0.1-red.svg?style=flat)
 
-btrace(RheaTrace) 是一个基于 [Systrace](https://developer.android.com/topic/performance/tracing) 实现的高性能 Android trace 工具，它支持在 App 编译期间自动注入自定义事件，并使用 [bhook](https://github.com/bytedance/bhook) 额外提供 IO 等 native 事件。
+btrace(又名 RheaTrace) 是一个基于 [Systrace](https://developer.android.com/topic/performance/tracing) 实现的高性能 Android trace 工具，它支持在 App 编译期间自动注入自定义事件，并使用 [bhook](https://github.com/bytedance/bhook) 额外提供 IO 等 native 事件。
 
 
 ## 关键特征
 
-支持自动注入自定义事件，在编译 Apk 期间为 App 方法自动注入**Trace#beginSection(String)** 和 **Trace.endSection()**。
+支持自动注入自定义事件，在编译 Apk 期间为 App 方法自动注入**Trace#beginSection(String)** 和 **Trace#endSection()**。
 
 提供额外 IO 等 native 事件，方便定位耗时原因。
 
@@ -55,20 +55,20 @@ dependencies {
 rheaTrace {
 
    compilation {
-      //为减少 APK 体积, 你可以为 App 中需要跟踪的方法设置 id 以此来跟踪此自定义事件, 默认值 false.
+      //为减少 APK 体积, 你可以为 App 中需要跟踪的方法设置 id 以此来跟踪此自定义事件, 默认值 false。
       traceWithMethodID = false 
-      //该文件配置决定哪些方法您不希望跟踪, 默认值 null.
+      //该文件配置决定哪些方法您不希望跟踪, 默认值 null。
       traceFilterFilePath = "$}/rhea-trace/traceFilter.txt"
-      //用特指定方法 id 来设置自定义事件名称, 默认值 null.
+      //用特指定方法 id 来设置自定义事件名称, 默认值 null。
       applyMethodMappingFilePath = "${project.rootDir}/rhea-trace/keep-method-id.txt"
   }
 
    runtime {
-      //仅在主线程抓取跟踪事件, 默认值 false.
+      //仅在主线程抓取跟踪事件, 默认值 false。
       mainThreadOnly true 
-      //在 App 启动之初开始抓取跟踪事件, 默认值 true.
+      //在 App 启动之初开始抓取跟踪事件, 默认值 true。
       startWhenAppLaunch true
-      //指定内存存储 atrace 数据 ring buffer 的大小
+      //指定内存存储 atrace 数据 ring buffer 的大小。
       atraceBufferSize "500000"
    }
 }
@@ -94,7 +94,7 @@ python rheatrace.py -v
 接着您将在终端看到如下输出。
 
 ```
-Current rheatrace version is 1.0.0.
+Current version is 1.0.1.
 ```
 
 RheaTrace 保留 [Systrace command](https://developer.android.com/topic/performance/tracing/command-line) 命令参数，如果您之前使用过 Systrace，您将很快了解如何使用 RheaTrace。
@@ -180,6 +180,8 @@ startWhenAppLaunch=true
 3. 查阅 [wiki](./INTRODUCTION.MD) 或 FAQ 寻求帮助。
 4. 联系我 kisson_cjw@hotmail.com。
 5. 加入 QQ 群。
+
+![](./assets/btrace-qq.jpeg)
 
 ## 贡献
 

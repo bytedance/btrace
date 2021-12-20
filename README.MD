@@ -6,10 +6,10 @@
 ![](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
 ![](https://img.shields.io/badge/release-1.0.1-red.svg?style=flat)
 
-btrace(RheaTrace) is a high performance Android trace tool which is based on [Systrace](https://developer.android.com/topic/performance/tracing), it support to [define custom events](https://developer.android.com/topic/performance/tracing/custom-events) automatically during building apk and using [bhook](https://github.com/bytedance/bhook) to provider more native events like IO.
+btrace(AKA RheaTrace) is a high performance Android trace tool which is based on [Systrace](https://developer.android.com/topic/performance/tracing), it support to [define custom events](https://developer.android.com/topic/performance/tracing/custom-events) automatically during building apk and using [bhook](https://github.com/bytedance/bhook) to provider more native events like IO.
 
 ## Key features
-Support to define custom events automatically, inject **Trace#beginSection(String)** and **Trace.endSection()** in app methods during building apk.
+Support to define custom events automatically, inject **Trace#beginSection(String)** and **Trace#endSection()** into app methods during building apk.
 
 Provider extra native events like IO to determine time-consuming reasons for methods conveniently.
 
@@ -89,7 +89,7 @@ python rheatrace.py -v
 Then you will see output below.
 
 ```
-Current rheatrace version is 1.0.0.
+Current version is 1.0.1.
 ```
 RheaTrace retains the [Systrace command](https://developer.android.com/topic/performance/tracing/command-line) parameters, if you have used Systrace before, you will quickly learn how to use RheaTrace.
 
@@ -175,6 +175,8 @@ Then, push the file to the device directory `sdcard/rhea-trace/${application pac
 3. Check [wiki](./INTRODUCTION.MD) or FAQ for help.
 4. Contact us kisson_cjw@hotmail.com.
 5. Join QQ group chat.
+
+![](./assets/btrace-qq.jpeg)
 
 ## Contributing
 

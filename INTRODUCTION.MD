@@ -8,7 +8,7 @@ RheaTrace 是抖音基础技术团队自研的一款高性能 Trace 工具，它
 2. 性能提升：改进 Systrace 文件实时写 [atrace](https://perfetto.dev/docs/data-sources/atrace) 数据方式，性能提升最大 400 % 以上。
 3. 实用性提升：额外提供更详细 IO 数据，大幅提升方法耗时归因效率；使用独创方案彻底来解决方法因执行异常引起 trace 数据不闭合问题。
 
-借助 RheaTrace，将为您的 App 带来极致流畅体验，RheaTrace 使用效果如下（因保密原则，每个方法用 ID 表示）。
+目前字节跳动已有多款 App 接入，包括抖音、TikTok、今日头条、幸福里等均已接入 RheaTrace，并为其体验优化提供强有力支持。借助 RheaTrace 将为您的 App 带来极致流畅体验，RheaTrace 使用效果如下（因保密原则，每个方法用 ID 表示）。
 
 ![](./assets/rheatrace_sample.png)
 
@@ -526,13 +526,11 @@ python rheatrace.py -a rhea.sample.android -t 3 -o ./output/systrace.html
 
 ```
 ├── .build
-│   ├── atrace-standard          //标准 atrace 格式
-│   ├── atrace-standard.html     //通过 Systrace 工具 --from-file 生成
-│   ├── atrace-sys               //能被 systrace 识别的 atrace 文件，将被注入 systrace-fs-origin.html 或 systrace-origin.html
-│   ├── rhea-atrace              //从设备中拉取的 rhea-atrace.gz 文件解压得到，原始 RheaTrace 格式的 atrace 数据
-│   ├── systrace-fs-origin.html  //如果设备 root，其中会包括内核 IO 事件，前文有提到
-│   └── systrace-origin.html     //通过 Systrace 工具抓取的可视化 trace 文件，不包含 atrace 数据
-└── systrace.html                //atrace-sys 与 systrace-fs-origin.html 或 systrace-origin.html 合并得到
+│   ├── atrace-standard          //标准 atrace 格式，可直接用 perfetto 打开。
+│   ├── rhea-atrace              //从设备中拉取的 rhea-atrace.gz 文件解压得到，原始 RheaTrace 格式的 atrace 数据。
+│   ├── systrace-fs-origin.html  //如果设备 root，其中会包括内核 IO 事件，前文有提到。
+│   └── systrace-origin.html     //通过 Systrace 工具抓取的可视化 trace 文件，不包含 atrace 数据。
+└── systrace.html                //atrace-standard 与 systrace-fs-origin.html 或 systrace-origin.html 合并得到。
 
 ```
 
