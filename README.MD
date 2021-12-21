@@ -153,8 +153,8 @@ Then, push the file to the device directory `sdcard/rhea-trace/${application pac
 | options   | defaults  | description  |
 |  ----  | ----  | ----  |
 | io  | true | Whether to enable tracking io native related methods.|
-| classLoad  | fasle | Whether to enable tracking class loading events, only supports Android 8.0 and above, and the app build type is debugable|
-| memory  | fasle | Whether to enable tracking memory access events, only supports Android 8.0 and above, and the app build type is debugable.|
+| classLoad  | fasle | Whether to enable tracking class loading events, only supports Android 8.0 and above, and the app build type is debuggable|
+| memory  | fasle | Whether to enable tracking memory access events, only supports Android 8.0 and above, and the app build type is debuggable.|
 | mainThreadOnly  | fasle | Whether to capture trace events only on the main thread, if you only care about the main thread trace events, please set it to true.|
 | atraceBufferSize  | 100000 | Specify the size of the ring buffer to store atrace data in the memory. If its value is too small, the trace data will be incompletely written. If you capture multi-threaded trace data, it is recommended to set the value to about one million; the minimum value is 10,000. The maximum value is 5 million.|
 | startWhenAppLaunch  | true | Start to capture tracking events at the beginning of the app startup. If you do startup optimization, it is recommended to keep the value as true.|
