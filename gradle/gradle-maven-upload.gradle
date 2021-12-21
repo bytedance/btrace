@@ -30,16 +30,12 @@ def getLocalUrl() {
     return readPropertyFromLocalProperties('LOCAL_URL')
 }
 
-def getReleaseUrl() {
-    return hasProperty('RELEASE_URL') ? RELEASE_URL : readPropertyFromLocalProperties('RELEASE_URL')
-}
-
 def getSnapshotUrl() {
     String localUrl = getLocalUrl()
     if (localUrl != null) {
         return uri(localUrl)
     }
-    return hasProperty('SNAPSHOT_URL') ? SNAPSHOT_REPOSITORY_URL : readPropertyFromLocalProperties('SNAPSHOT_URL')
+    return "https://oss.sonatype.org/content/repositories/snapshots/"
 }
 
 def getOssrhUsername() {
@@ -71,7 +67,7 @@ afterEvaluate { it ->
                 pom.artifactId = POM_ARTIFACT_ID
                 pom.version = POM_VERSION_NAME
 
-                repository(url: getReleaseUrl()) {
+                repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
                     authentication(userName: getOssrhUsername(), password: getOssrhPassword())
                 }
                 snapshotRepository(url: getSnapshotUrl()) {
