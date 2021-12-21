@@ -1,8 +1,6 @@
 ## 介绍
 
-
-
-RheaTrace 是抖音基础技术团队自研的一款高性能 Trace 工具，它基于 Systrace 实现，并针对 Systrace 不足之处加以改进，核心改进点如下。
+btrace（又名 RheaTrace）是抖音基础技术团队自研的一款高性能 Trace 工具，它基于 Systrace 实现，并针对 Systrace 不足之处加以改进，核心改进点如下。
 
 1. 效率提升：编译期间为 App 方法自动注入[自定义事件](https://developer.android.com/topic/performance/tracing/custom-events?hl=zh-cn)，并提供高效、灵活配置规则。
 2. 性能提升：改进 Systrace 文件实时写 [atrace](https://perfetto.dev/docs/data-sources/atrace) 数据方式，性能提升最大 400 % 以上。
@@ -31,10 +29,10 @@ atrace 的数据类型见下图。
 
 内核空间的数据主要是一些补充分析数据，如 freq、sched、binder 等，常用 CPU 调度相关信息包括。
 
-1. CPU 频率变化情况
-2. 任务执行情况
-3. 大小核调度情况
-4. CPU Boost 调度情况
+1. CPU 频率变化情况。
+2. 任务执行情况。
+3. 大小核调度情况。
+4. CPU Boost 调度情况。
 
 ![](./assets/cpu-scheduler.png)
 
@@ -186,7 +184,7 @@ int32_t ATrace::InstallAtraceProbe() {
 
 > 思路参考[profilo#installSystraceSnooper](https://github.com/facebookincubator/profilo/blob/master/cpp/atrace/Atrace.cpp)，本文不做过多介绍。
 
-接着，通过PLT Hook `libcutils.so` 中 write、write\_chk 方法，判定该方法传入 fd 是否与 atrace\_marker\_fd 一致，若一致，则将 atrace 数据写入我们定义的文件中。
+接着，通过PLT Hook `libcutils.so` 中 write、write\_chk 方法，判定该方法传入 fd 是否与 atrace\_marker\_fd 一致，若一致则将 atrace 数据写入我们定义的文件中。
 
 ```
 ssize_t proxy_write(int fd, const void* buf, size_t count) {
@@ -430,12 +428,12 @@ Systrace 工具中 `--from-file` 是可以将原始 atrace 数据转化为可视
 ```
 格式说明：
 
-1. \<ThreadName>：线程名，若为主线程，可指定为包名。
-2. \<ThreadID>：线程ID。
-3. \<Time seconds>：方法开始或者结束时间戳。
-4. \<B|E>：标记该条记录为方法开始(B)还是结束(E)。
-5. \<ProcessID>：所在进程ID。
-6. \<TAG>：方法标记，字符长度不可超过127。
+1. `<ThreadName>`：线程名，若为主线程，可指定为包名。
+2. `<ThreadID>`：线程ID。
+3. `<Time seconds>`：方法开始或者结束时间戳。
+4. `<B|E>`：标记该条记录为方法开始(B)还是结束(E)。
+5. `<ProcessID>`：所在进程ID。
+6. `<TAG>`：方法标记，字符长度不可超过127。
 
 `[001]` 和 `...1` 对应的数据用户层是无法获取，因此硬编码写死。 
 
@@ -522,7 +520,7 @@ u0_a168       16667 16694 GPU completion
 ```
 python rheatrace.py -a rhea.sample.android -t 3 -o ./output/systrace.html
 ```
-在 systrace.html 同级目录 output 下会生成 `.build` 目录，其中包括上述中间产物文件。
+在 systrace.html 同级目录下会生成 `.build` 目录，其中包括上述中间产物文件。
 
 ```
 ├── .build
