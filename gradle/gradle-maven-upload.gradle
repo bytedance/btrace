@@ -1,6 +1,8 @@
 apply plugin: 'maven'
 apply plugin: 'signing'
 
+ext["LOCAL_URL"] = ''
+
 ext["signing.keyId"] = ''
 ext["signing.password"] = ''
 ext["signing.secretKeyRingFile"] = ''
@@ -26,34 +28,12 @@ def isReleaseBuild() {
     return !POM_VERSION_NAME.contains("SNAPSHOT")
 }
 
-def getLocalUrl() {
-    return readPropertyFromLocalProperties('LOCAL_URL')
-}
-
 def getSnapshotUrl() {
-    String localUrl = getLocalUrl()
+    String localUrl = LOCAL_URL
     if (localUrl != null) {
         return uri(localUrl)
     }
     return "https://oss.sonatype.org/content/repositories/snapshots/"
-}
-
-def getOssrhUsername() {
-    return readPropertyFromLocalProperties('ossrhUsername')
-}
-
-def getOssrhPassword() {
-    return readPropertyFromLocalProperties('ossrhPassword')
-}
-
-def readPropertyFromLocalProperties(String key) {
-    Properties properties = new Properties()
-    try {
-        properties.load(project.rootProject.file('./local.properties').newDataInputStream())
-    } catch (Exception e) {
-        println("load local properties failed msg:${e.message}")
-    }
-    return properties.getProperty(key)
 }
 
 afterEvaluate { it ->
@@ -68,10 +48,10 @@ afterEvaluate { it ->
                 pom.version = POM_VERSION_NAME
 
                 repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                    authentication(userName: getOssrhUsername(), password: getOssrhPassword())
+                    authentication(userName: ossrhUsername, password: ossrhPassword)
                 }
                 snapshotRepository(url: getSnapshotUrl()) {
-                    authentication(userName: getOssrhUsername(), password: getOssrhPassword())
+                    authentication(userName: ossrhUsername, password: ossrhPassword)
                 }
 
                 pom.project {
