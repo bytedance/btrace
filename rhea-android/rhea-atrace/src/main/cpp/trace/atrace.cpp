@@ -194,7 +194,6 @@ void ATrace::LogTrace(const void *buf, size_t count) {
 
 // Private functions
 int32_t ATrace::InstallProbe() {
-  ATRACE_BEGIN(__FUNCTION__);
 
   if (atrace_probe_installed_) {
     return OK;
@@ -212,8 +211,6 @@ int32_t ATrace::InstallProbe() {
   }
 
   atrace_probe_installed_ = true;
-
-  ATRACE_END();
 
   return true;
 }
