@@ -86,7 +86,7 @@ export PATH=${PATH}:/Users/${user_name}/Library/Android/sdk/platform-tools/systr
 
 ## 使用
 
-打开终端，将目录切换至 **RheaTrace/scripts/python/rheatrace** 下，并执行如下命令。
+打开终端，将目录切换至 **btrace/scripts/python/rheatrace** 下，并执行如下命令。
 
 ```
 python rheatrace.py -v
@@ -158,7 +158,7 @@ startWhenAppLaunch=true
 |  参数   | 默认值  | 说明  |
 |  ----  | ----  | ----  |
 | io  | true | 是否开启跟踪 io native 相关方法。 |
-| classLoad  | fasle | 是否开启跟踪类加载事件，仅支持 Android 8.0 及以上，且 App 编译类型为 debuggable |
+| classLoad  | fasle | 是否开启跟踪类加载事件，仅支持 Android 8.0 及以上，且 App 编译类型为 debuggable。 |
 | memory  | fasle | 是否开启跟踪内存访问事件，仅支持 Android 8.0 及以上，且 App 编译类型为 debuggable。|
 | mainThreadOnly  | fasle | 是否仅在主线程抓取跟踪事件，如果您仅关心主线程 trace 数据，请将其置为 true。|
 | atraceBufferSize  | 100000 | 指定内存存储 atrace 数据 ring buffer 的大小，如果其值过小会导致 trace 数据写入不完整，若您抓取多线程 trace 数据，建议将值设为百万左右量级；最小值为 1 万，最大值为 5 百万。|
