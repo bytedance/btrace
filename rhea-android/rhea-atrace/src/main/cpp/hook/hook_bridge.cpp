@@ -159,10 +159,10 @@ HookBridge::HookBridge() = default;
 HookBridge::~HookBridge() = default;
 
 bool HookBridge::HookLoadedLibs() {
-  ATRACE_BEGIN(__FUNCTION__);
   if (IsHooked()) {
     return true;
   }
+  ATRACE_BEGIN(__FUNCTION__);
   HookForATrace();
   hook_ok_ = true;
   ATRACE_END();
@@ -170,10 +170,10 @@ bool HookBridge::HookLoadedLibs() {
 }
 
 bool HookBridge::UnhookLoadedLibs() {
-  ATRACE_BEGIN(__FUNCTION__);
   if (!IsHooked()) {
     return true;
   }
+  ATRACE_BEGIN(__FUNCTION__);
   UnhookLoadedLibsInternal();
   hook_ok_ = false;
   ATRACE_END();
