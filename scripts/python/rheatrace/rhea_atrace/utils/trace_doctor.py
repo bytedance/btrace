@@ -173,12 +173,11 @@ def repair_rhea_lines_nosort(rhea_lines):
                     real_rhea.append(tmp_line_e[3].replace(tmp_line_e_end_time, pop_value_end_time)
                                      .replace(': B', ': E')
                                      .replace("\n", "") + ": CrashTag\n")
-                if len(value_stack) > 0 and value_stack[-1][2] == 'B' and value_stack[-1][1] == pop_value[1]:
-                    real_rhea.append(value_stack.pop()[3])
-                    real_rhea.append(pop_value[3])
-                    continue
                 while len(value_stack) > 0 and value_stack[-1][2] == 'T' and value_stack[-1][1] == pop_value[1]:
                     value_stack.pop()
+                if len(real_rhea_deep) > 0 and real_rhea_deep[-1][1] == pop_value[1]:
+                                    real_rhea_deep.append(pop_value)
+                                    continue
                 if len(value_stack) > 0 and value_stack[-1][2] == 'T' and value_stack[-1][1] != pop_value[1]:
                     real_rhea_deep.append(pop_value)
                     real_pop = value_stack.pop()
@@ -188,20 +187,40 @@ def repair_rhea_lines_nosort(rhea_lines):
                     real_rhea_deep.append(pop_value)
                     real_rhea_deep.append(value_stack.pop())
                     continue
-            elif pop_value[2] == 'B':
-                if len(real_rhea_deep) > 0 and real_rhea_deep[-1][2] == 'E' and real_rhea_deep[-1][1] == pop_value[1]:
-                    # Fix the problem of disorder caused by the same timestamp
+                if len(value_stack) > 0 and value_stack[-1][2] == 'B' and value_stack[-1][1] == pop_value[1]:
+                    real_rhea.append(value_stack.pop()[3])
                     real_rhea.append(pop_value[3])
-                    real_rhea.append(real_rhea_deep.pop()[3])
                     continue
+            elif pop_value[2] == 'B':
+                has_match_end, real_rhea_deep, deep_pop = search_end_trace(real_rhea_deep, pop_value[1])
+                if has_match_end:
+                    real_rhea.append(pop_value[3])
+                    real_rhea.append(deep_pop[3])
                 else:
                     real_rhea.append(pop_value[3].replace("\n", "") + ": CrashTag\n")
                     real_rhea.append(pop_value[3].replace(': B', ': E')
                                      .replace("\n", "") + ": CrashTag\n")
+                    logger.debug(
+                        "pop_value is B, value_stack is null or not match pop_value: %s, real_rhea_deep[-1]: %s",
+                        pop_value, real_rhea_deep)
         index = index + 1
         print_progress(index, len(stack_dict.keys()), prefix='Repair lost Crash data:', suffix='Complete',
                        bar_length=80)
     return real_rhea
+
+
+def search_end_trace(real_rhea_deep_list, method):
+    for index in range(len(real_rhea_deep_list) - 1, -1, -1):
+        tmp = real_rhea_deep_list
+        pop = real_rhea_deep_list[index]
+        if pop[1] == method:
+            while index - 1 > 0 and real_rhea_deep_list[index - 1][1] == method:
+                pop = real_rhea_deep_list[index - 1]
+                tmp.pop(index)
+                index = index - 1
+            tmp.pop(index)
+            return True, tmp, pop
+    return False, real_rhea_deep_list, None
 
 
 def repair_origin_file(origin_file):
