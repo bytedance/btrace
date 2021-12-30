@@ -59,6 +59,9 @@ class LocalConfigManager {
                     .setMainThreadOnly(TraceRuntimeConfig.isMainThreadOnly())
                     .startWhenAppLaunch(TraceRuntimeConfig.isStartWhenAppLaunch())
                     .setATraceBufferSize(TraceRuntimeConfig.getATraceBufferSize())
+                    .enableIO(TraceRuntimeConfig.isEnableIO())
+                    .enableMemory(TraceRuntimeConfig.isEnableMemory())
+                    .enableClassLoad(TraceRuntimeConfig.isEnableClassLoad())
                     .build();
         }
         Log.d(TAG, "trace config: " + traceConfiguration.toString());

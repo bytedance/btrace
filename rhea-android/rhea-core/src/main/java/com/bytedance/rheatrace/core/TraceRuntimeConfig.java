@@ -36,6 +36,12 @@ public final class TraceRuntimeConfig {
 
     private static long sATraceBufferSize = 0;
 
+    private static boolean sEnableIO = true;
+
+    private static boolean sEnableMemory = false;
+
+    private static boolean sEnableClassLoad = false;
+
     private TraceRuntimeConfig() {
 
     }
@@ -67,6 +73,21 @@ public final class TraceRuntimeConfig {
         }
     }
 
+    @SuppressWarnings("unused")
+    public static void setEnableIO(boolean value) {
+        TraceRuntimeConfig.sEnableIO = value;
+    }
+
+    @SuppressWarnings("unused")
+    public static void setEnableMemory(boolean value) {
+        TraceRuntimeConfig.sEnableMemory = value;
+    }
+
+    @SuppressWarnings("unused")
+    public static void setEnableClassLoad(boolean value) {
+        TraceRuntimeConfig.sEnableClassLoad = value;
+    }
+
     static boolean isMainThreadOnly() {
         return sMainThreadOnly;
     }
@@ -77,6 +98,18 @@ public final class TraceRuntimeConfig {
 
     static long getATraceBufferSize() {
         return sATraceBufferSize;
+    }
+
+    static boolean isEnableClassLoad() {
+        return sEnableClassLoad;
+    }
+
+    static boolean isEnableMemory() {
+        return sEnableMemory;
+    }
+
+    static boolean isEnableIO() {
+        return sEnableIO;
     }
 
 }
