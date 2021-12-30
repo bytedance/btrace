@@ -22,30 +22,43 @@ open class TraceRuntime(
 
     var startWhenAppLaunch: Boolean = true,
 
+    var enableIO: Boolean = true,
+
+    var enableMemory: Boolean = false,
+
+    var enableClassLoad: Boolean = false,
+
     var atraceBufferSize: String? = null
 
 ) {
 
     override fun equals(other: Any?): Boolean {
-        if (other == null) {
-            return false
-        }
-        if (other !is TraceRuntime) {
-            return false
-        }
-        return other.mainThreadOnly == mainThreadOnly
-                && other.startWhenAppLaunch == startWhenAppLaunch
-                && other.atraceBufferSize == atraceBufferSize
-    }
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
 
-    override fun toString(): String {
-        return "TraceRuntime(mainThreadOnly=$mainThreadOnly, startWhenAppLaunch=$startWhenAppLaunch, atraceBufferSize=$atraceBufferSize)"
+        other as TraceRuntime
+
+        if (mainThreadOnly != other.mainThreadOnly) return false
+        if (startWhenAppLaunch != other.startWhenAppLaunch) return false
+        if (enableIO != other.enableIO) return false
+        if (enableMemory != other.enableMemory) return false
+        if (enableClassLoad != other.enableClassLoad) return false
+        if (atraceBufferSize != other.atraceBufferSize) return false
+
+        return true
     }
 
     override fun hashCode(): Int {
         var result = mainThreadOnly.hashCode()
         result = 31 * result + startWhenAppLaunch.hashCode()
-        result = 31 * result + atraceBufferSize.hashCode()
+        result = 31 * result + enableIO.hashCode()
+        result = 31 * result + enableMemory.hashCode()
+        result = 31 * result + enableClassLoad.hashCode()
+        result = 31 * result + (atraceBufferSize?.hashCode() ?: 0)
         return result
+    }
+
+    override fun toString(): String {
+        return "TraceRuntime(mainThreadOnly=$mainThreadOnly, startWhenAppLaunch=$startWhenAppLaunch, enableIO=$enableIO, enableMemory=$enableMemory, enableClassLoad=$enableClassLoad, atraceBufferSize=$atraceBufferSize)"
     }
 }

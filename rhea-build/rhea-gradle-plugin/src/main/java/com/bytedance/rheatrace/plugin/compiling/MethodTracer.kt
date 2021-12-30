@@ -627,6 +627,34 @@ class TraceMethodAdapter(
                 "(Z)V",
                 false
             )
+
+            mv.visitLdcInsn(traceRuntime.enableIO)
+            mv.visitMethodInsn(
+                INVOKESTATIC,
+                RheaConstants.CLASS_RuntimeConfig,
+                "setEnableIO",
+                "(Z)V",
+                false
+            )
+
+            mv.visitLdcInsn(traceRuntime.enableClassLoad)
+            mv.visitMethodInsn(
+                INVOKESTATIC,
+                RheaConstants.CLASS_RuntimeConfig,
+                "setEnableClassLoad",
+                "(Z)V",
+                false
+            )
+
+            mv.visitLdcInsn(traceRuntime.enableMemory)
+            mv.visitMethodInsn(
+                INVOKESTATIC,
+                RheaConstants.CLASS_RuntimeConfig,
+                "setEnableMemory",
+                "(Z)V",
+                false
+            )
+
             if (traceRuntime.atraceBufferSize != null) {
                 var atraceBufferSize: Long = 0
                 try {
