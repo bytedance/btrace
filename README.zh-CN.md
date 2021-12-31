@@ -58,7 +58,7 @@ rheaTrace {
       //为减少 APK 体积, 你可以为 App 中需要跟踪的方法设置 id 以此来跟踪此自定义事件, 默认值 false。
       traceWithMethodID = false 
       //该文件配置决定哪些方法您不希望跟踪, 默认值 null。
-      traceFilterFilePath = "$}/rhea-trace/traceFilter.txt"
+      traceFilterFilePath = "${project.rootDir}/rhea-trace/traceFilter.txt"
       //用特指定方法 id 来设置自定义事件名称, 默认值 null。
       applyMethodMappingFilePath = "${project.rootDir}/rhea-trace/keep-method-id.txt"
   }
