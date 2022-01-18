@@ -38,8 +38,7 @@ def capture(context):
         (out, return_code) = cmd_executer.exec_commands(
             cmd_executer.get_complete_abd_cmd(manage_external_storage_cmd, context.serial_number))
         if return_code is not 0:
-            logger.error("failed to allow MANAGE_EXTERNAL_STORAGE permission for " + context.app_name)
-            return False
+            logger.warning("failed to allow MANAGE_EXTERNAL_STORAGE permission for " + context.app_name)
     """" check whether restart or not"""
     if context.restart:
         logger.info("try to force stop " + context.app_name)
