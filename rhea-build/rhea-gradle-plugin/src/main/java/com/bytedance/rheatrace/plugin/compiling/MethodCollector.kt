@@ -128,9 +128,9 @@ class MethodCollector(
                 zipFile = ZipFile(fromJar)
                 val enumeration = zipFile.entries()
                 while (enumeration.hasMoreElements()) {
+                    val zipEntry = enumeration.nextElement()
+                    val zipEntryName = zipEntry.name
                     try {
-                        val zipEntry = enumeration.nextElement()
-                        val zipEntryName = zipEntry.name
                         if (zipEntryName.endsWith(".class")) {
                             val inputStream = zipFile.getInputStream(zipEntry)
                             val classReader = ClassReader(inputStream)
@@ -142,7 +142,7 @@ class MethodCollector(
                         RheaLog.e(
                             TAG,
                             "Failed to read class:%s, e:%s",
-                            enumeration.nextElement().name,
+                            zipEntryName,
                             error
                         )
                     }
