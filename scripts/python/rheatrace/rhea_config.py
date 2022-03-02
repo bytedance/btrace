@@ -22,6 +22,7 @@ ORIGIN_SYSTRACE_FILE = "systrace-origin.html"
 ORIGIN_SYSTRACE_FS_FILE = 'systrace-fs-origin.html'
 ATRACE_APP_GZ_FILE_LOCATION = "sdcard/rhea-trace/%s/"
 ATRACE_GZ_FILE = 'rhea-atrace.gz'
+ATRACE_BINDER_FILE = 'binder.txt'
 ATRACE_RAW_FILE = 'rhea-atrace'
 ATRACE_STANDARDIZED_FILE = 'atrace-standard'
 ATRACE_SYS_FILE = 'atrace-sys'
