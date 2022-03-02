@@ -24,7 +24,29 @@ from rhea_atrace.utils.file_utils import *
 from rhea_atrace.utils.trace_doctor import *
 from decimal import *
 
+from trace_enhance import TraceEnhance
+
 logger = rhea_logger
+
+
+def parse_key_value_pairs(line):
+    """ parse input a=b c=d into map"""
+    next_value = True
+    last_end = len(line)
+    stack = list()
+    for idx in reversed(range(len(line))):
+        stop = '=' if next_value else ' '
+        if line[idx] == stop:
+            sub = line[idx + 1: last_end]
+            last_end = idx
+            next_value = not next_value
+            stack.append(sub)
+    result = {}
+    while len(stack) != 0:
+        key = stack.pop()
+        value = stack.pop()
+        result[key] = value
+    return result
 
 
 class TraceProcessor:
@@ -34,6 +56,7 @@ class TraceProcessor:
 
         self.gz_atrace_file = context.get_build_file_path(rhea_config.ATRACE_GZ_FILE)
         self.raw_atrace_file = context.get_build_file_path(rhea_config.ATRACE_RAW_FILE)
+        self.atrace_binder_file = context.get_build_file_path(rhea_config.ATRACE_BINDER_FILE)
         systrace_io_used = context.get_params(rhea_config.ENVIRONMENT_PARAMS_ANDROID_FS)
         if systrace_io_used:
             self.systrace_origin_file = context.get_build_file_path(rhea_config.ORIGIN_SYSTRACE_FS_FILE)
@@ -49,6 +72,7 @@ class TraceProcessor:
         self.systrace_lines = list()
         self.rhea_trace_lines = list()
         self.rhea_standard_lines = list()
+        self.binder_origin_lines = list()
 
         self.rhea_trace_file = context.get_build_file_path(rhea_config.ATRACE_SYS_FILE)
         self.rhea_standard_file = context.get_build_file_path(rhea_config.ATRACE_STANDARDIZED_FILE)
@@ -60,6 +84,16 @@ class TraceProcessor:
         self.first_systrace_time = Decimal('0.000000')
         self.first_atrace_time = Decimal('0.000000')
         self.is_real_monotonic = False
+
+    def pull_read_rhea_binder_file(self):
+        binder_path = rhea_config.ATRACE_APP_GZ_FILE_LOCATION \
+                          .replace("%s", self.package_name) + rhea_config.ATRACE_BINDER_FILE
+        pull_cmd = ["pull", binder_path, self.atrace_binder_file]
+        (out, return_code) = cmd_executer.exec_commands(cmd_executer.get_complete_abd_cmd(pull_cmd, self.serial_number))
+        if return_code is 0:
+            with open(self.atrace_binder_file, 'rb') as f:
+                self.binder_origin_lines = f.readlines()
+        return self.binder_origin_lines
 
     def unzip_rhea_original_file(self):
         atrace_app_path = rhea_config.ATRACE_APP_GZ_FILE_LOCATION.replace(
@@ -102,6 +136,24 @@ class TraceProcessor:
             self.systrace_origin_lines = fo.readlines()
         find_counts = 0
         self.tid_and_task_name_dict = dict()
+        """ 
+        parse from lines like
+        <...>-32347   (  32347) [007] .... 239854.417866: task_newtask: pid=32390 comm=.sample.android clone_flags=3d0f00 oom_score_adj=0
+        <...>-32390   (  32347) [005] ...1 239854.417989: task_rename: pid=32390 oldcomm=.sample.android newcomm=Thread 2 oom_score_adj=0
+        <...>-32390   (  32347) [004] .n.1 239854.418157: task_rename: pid=32390 oldcomm=Thread 2 newcomm=lock_test 0 oom_score_adj=0
+        """
+        for line in self.systrace_origin_lines:
+            if "task_newtask: pid=" in line:
+                map = parse_key_value_pairs(line)
+                if "pid" in map.keys() and "comm" in map.keys():
+                    self.tid_and_task_name_dict[map["pid"]] = map["comm"]
+            elif "task_rename: pid=" in line:
+                map = parse_key_value_pairs(line)
+                if "pid" in map.keys() and "newcomm" in map.keys():
+                    self.tid_and_task_name_dict[map["pid"]] = map["newcomm"]
+        """
+        parse from USER PID TID CMD
+        """
         for line in self.systrace_origin_lines:
             if find_counts is 2:
                 no_shifter_line = line.replace("\n", "")
@@ -144,6 +196,7 @@ class TraceProcessor:
         self.rhea_origin_lines = repair_rhea_lines_nosort(open(self.raw_atrace_file, 'rb').readlines())
         pid = None
         self.read_task_name_from_systrace()
+        TraceEnhance(self).enhance()
         s_symbol = " [001] ...1 "
         t_symbol = ": tracing_mark_write:"
         index = 0
