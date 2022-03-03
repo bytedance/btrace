@@ -16,7 +16,7 @@
 #
 import logging
 
-VERSION_CODE = "1.0.1"
+VERSION_CODE = "1.1.0"
 
 ORIGIN_SYSTRACE_FILE = "systrace-origin.html"
 ORIGIN_SYSTRACE_FS_FILE = 'systrace-fs-origin.html'
