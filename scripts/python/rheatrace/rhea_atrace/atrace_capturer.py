@@ -44,7 +44,7 @@ def capture(context):
         logger.info("try to force stop " + context.app_name)
         _force_stop_app(context.app_name, context.serial_number)
         logger.info("start to launch app %s", context.app_name)
-        start_success = _start_app(context.app_name, context.serial_number)
+        start_success = _start_app(context.app_name, context.serial_number, context.deeplink)
         if not start_success:
             logger.info("failed to launch app '%s'", context.app_name)
             return False
@@ -52,7 +52,7 @@ def capture(context):
         started = _check_started(context.app_name, context.serial_number)
         if not started:
             logger.info("app '%s' is not started, just launch it firstly.", context.app_name)
-            start_success = _start_app(context.app_name, context.serial_number)
+            start_success = _start_app(context.app_name, context.serial_number, context.deeplink)
             if not start_success:
                 logger.info("failed to launch app '%s'", context.app_name)
                 return False
@@ -81,12 +81,17 @@ def _check_started(app_name, serial_number):
         return False
 
 
-def _start_app(app_name, serial_number):
-    launch_activity = __get_launch_activity(app_name, serial_number)
-    if launch_activity is None:
-        return False
-    logger.debug("launch-activity is '%s'", launch_activity)
-    cmd = ["shell", "am", "start", "-n", launch_activity]
+def _start_app(app_name, serial_number, deeplink):
+    if deeplink is not None:
+        deeplink = repr(deeplink)
+        cmd = ["shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d",
+               deeplink]
+    else:
+        launch_activity = __get_launch_activity(app_name, serial_number)
+        if launch_activity is None:
+            return False
+        logger.debug("launch-activity is '%s'", launch_activity)
+        cmd = ["shell", "am", "start", "-n", launch_activity]
     (output, return_code) = cmd_executer.exec_commands(cmd_executer.get_complete_abd_cmd(cmd, serial_number))
     if return_code is 0:
         return True

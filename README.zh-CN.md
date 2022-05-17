@@ -129,6 +129,7 @@ python rheatrace.py -a rhea.sample.android -t 5 -o ./output/mynewtrace.html sche
 |  --from-file=file-path  | 根据文件（例如包含原始跟踪数据的 TXT 文件）创建交互式 HTML 报告，而不是运行实时跟踪。|
 |  -e device-serial\|--serial=device-serial  | 在已连接的特定设备（由对应的设备序列号标识）上进行跟踪。|
 | categories	| 包含您指定的系统进程的跟踪信息，如 gfx 表示用于渲染图形的系统进程。您可以使用 -l 命令运行 systrace，以查看已连接设备可用的服务列表。|
+| -d N \| --deeplink=N | 通过deeplink链接启动APP. |
 
 ### 拓展选项
 
