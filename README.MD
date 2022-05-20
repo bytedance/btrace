@@ -122,6 +122,7 @@ python rheatrace.py -a rhea.sample.android -t 5 -o ./output/mynewtrace.html sche
 |  --from-file=file-path  | Create an interactive HTML report from a file, such as TXT files that include raw trace data, instead of running a live trace.|
 |  -e device-serial\|--serial=device-serial  | Conduct the trace on a specific connected device, identified by its device serial number.|
 | categories	| Include tracing information for the system processes you specify, such as gfx for system processes that render graphics. You can run rheatrace with the -l command to see a list of services available to your connected device.|
+| -d N \| --deeplink=N | Start app by deeplink url. |
 
 ### Extensive options
 

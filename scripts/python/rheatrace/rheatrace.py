@@ -87,6 +87,9 @@ def add_sys_options(parser):
     parser.add_option('-l', '--list-categories', dest='list_categories',
                       default=False, action='store_true',
                       help='list the available categories and exit')
+    parser.add_option('-d', '--deeplink', dest='deeplink', type='string',
+                      default=None, action='store',
+                      help='start app by deeplink url')
     return parser
 
 

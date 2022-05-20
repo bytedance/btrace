@@ -43,6 +43,7 @@ class Context:
         self.kfuncs = options.kfuncs
         self.from_file = options.from_file
         self.systrace_categories = options.systrace_categories
+        self.deeplink = options.deeplink
         self.restart = options.restart
         self.advanced_systrace_time = options.advanced_systrace_time
         self.list_categories = options.list_categories
