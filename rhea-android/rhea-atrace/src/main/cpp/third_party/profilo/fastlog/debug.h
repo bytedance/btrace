@@ -1,5 +1,6 @@
 /****************************************************************************
  *
+ * Copyright (C) 2005-2017 The Android Open Source Project
  * Copyright 2020 Bytedance All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");

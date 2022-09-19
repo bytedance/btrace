@@ -1,3 +1,47 @@
+// Copyright (c) 2020-present, ByteDance, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+
+// ByteHook is now credited to all its contributors.
+//
+// Before ByteHook was open sourced in August 2021, it was designed, implemented and
+// improved by the ByteHook Development Team from ByteDance IES, GIP and Client Infra.
+// The team members (alphabetical order):
+//
+// Hongkai Liu (liuhongkai@bytedance.com)
+// Jinshi Song (songjinshi@bytedance.com)
+// Kelun Cai (caikelun@bytedance.com)
+// Li Han (hanli.lee@bytedance.com)
+// Li Zhang (zhangli.foxleezh@bytedance.com)
+// Minghao Li (liminghao.mingo@bytedance.com)
+// Nian Sun (sunnian@bytedance.com)
+// Quanfei Li (liquanfei@bytedance.com)
+// Shujie Wang (wangshujie.matt@bytedance.com)
+// Tianzhou Shen (shentianzhou@bytedance.com)
+// Xiangyu Pang (pangxiangyu@bytedance.com)
+// Yingmin Piao (piaoyingmin@bytedance.com)
+// Yonggang Sun (sunyonggang@bytedance.com)
+// Zhi Guo (guozhi.kevin@bytedance.com)
+// Zhi Xu (xuzhi@bytedance.com)
+//
+
 #ifndef BYTEDANCE_BYTEHOOK_H
 #define BYTEDANCE_BYTEHOOK_H 1
 

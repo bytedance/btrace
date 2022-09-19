@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2005 The Android Open Source Project
  * Copyright (C) 2021 ByteDance Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
