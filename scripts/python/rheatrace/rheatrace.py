@@ -54,6 +54,7 @@ import time
 import multiprocessing
 import optparse
 import rhea_config
+from atrace_processor import ATraceProcessor
 from common.context import Context
 from common import env_checker
 from enhanced_systrace import systrace_capturer
@@ -102,6 +103,9 @@ def add_extra_options(parser):
     parser.add_option('--debug', dest='debug',
                       default=False, action='store_true',
                       help='Set the log switch to debug level.')
+    parser.add_option('--only-decode-atrace', dest='only_decode_atrace',
+                      default=False, action='store_true',
+                      help='Only decode atrace from machine.')
     return options
 
 
@@ -186,7 +190,8 @@ def show_version():
     """
     show current rheatrace script version
     """
-    print "Current version is %s.\n" % rhea_config.VERSION_CODE
+    print
+    "Current version is %s.\n" % rhea_config.VERSION_CODE
     sys.exit(0)
 
 
@@ -206,6 +211,9 @@ def main_impl(argv):
     if context.show_version:
         show_version()
         sys.exit(1)
+    elif context.only_decode_atrace:
+        __check_device_and_env(context)
+        ATraceProcessor(context).processor()
     elif context.list_categories:
         (out, return_code) = systrace_capturer.show_list_categories(context.serial_number)
         logger.info("\n" + out)
@@ -224,24 +232,7 @@ def main_impl(argv):
         logger.info("\n" + out)
         sys.exit(1)
     else:
-        if context.app_name is None or "":
-            logger.error("app name must be specified, using '-a' to set app name.")
-            sys.exit(1)
-        env_ok = env_checker.check_env()
-        if not env_ok:
-            sys.exit(1)
-        if not _initialize_devices(context):
-            sys.exit(1)
-
-        """delete rheatrace.stop file"""
-        if __delete_rheatrace_stop_file(context) is False:
-            logger.debug("failed to delete rhea-atrace.stop file, maybe it's not exist.")
-
-        """check whether app is installed or not."""
-        result = __check_install(context.app_name, context.serial_number)
-        if not result:
-            logger.warning("app '%s' is not installed, please check your inputs.", context.app_name)
-            sys.exit(1)
+        __check_device_and_env(context)
 
         """start to capture systrace"""
         _systrace_capturer = multiprocessing.Process(target=systrace_capturer.capture, args={context})
@@ -268,6 +259,25 @@ def main_impl(argv):
             logger.error("failed to write rhea-atrace.gz file completely.")
         trace_processor = TraceProcessor(context)
         trace_processor.processor()
+
+
+def __check_device_and_env(context):
+    if context.app_name is None or "":
+        logger.error("app name must be specified, using '-a' to set app name.")
+        sys.exit(1)
+    env_ok = env_checker.check_env()
+    if not env_ok:
+        sys.exit(1)
+    if not _initialize_devices(context):
+        sys.exit(1)
+    """delete rheatrace.stop file"""
+    if __delete_rheatrace_stop_file(context) is False:
+        logger.debug("failed to delete rhea-atrace.stop file, maybe it's not exist.")
+    """check whether app is installed or not."""
+    result = __check_install(context.app_name, context.serial_number)
+    if not result:
+        logger.warning("app '%s' is not installed, please check your inputs.", context.app_name)
+        sys.exit(1)
 
 
 def __check_install(app_name, serial_number):

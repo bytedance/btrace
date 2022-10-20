@@ -23,6 +23,7 @@ from enhanced_systrace import systrace_env
 from rhea_atrace.utils.file_utils import *
 from rhea_atrace.utils.trace_doctor import *
 from decimal import *
+from common.context import Context
 
 from trace_enhance import TraceEnhance
 
@@ -49,22 +50,15 @@ def parse_key_value_pairs(line):
     return result
 
 
-class TraceProcessor:
+class ATraceProcessor:
     def __init__(self, context):
         self.serial_number = context.serial_number
         self.package_name = context.app_name
+        self.tid_and_task_name_dict = {}
 
         self.gz_atrace_file = context.get_build_file_path(rhea_config.ATRACE_GZ_FILE)
         self.raw_atrace_file = context.get_build_file_path(rhea_config.ATRACE_RAW_FILE)
         self.atrace_binder_file = context.get_build_file_path(rhea_config.ATRACE_BINDER_FILE)
-        systrace_io_used = context.get_params(rhea_config.ENVIRONMENT_PARAMS_ANDROID_FS)
-        if systrace_io_used:
-            self.systrace_origin_file = context.get_build_file_path(rhea_config.ORIGIN_SYSTRACE_FS_FILE)
-        else:
-            self.systrace_origin_file = context.get_build_file_path(rhea_config.ORIGIN_SYSTRACE_FILE)
-        if not os.path.exists(self.systrace_origin_file):
-            logger.error("systrace file '%s' is not existed.", self.systrace_origin_file)
-            return
 
         self.systrace_origin_lines = list()
         self.rhea_origin_lines = list()
@@ -96,6 +90,7 @@ class TraceProcessor:
         return self.binder_origin_lines
 
     def unzip_rhea_original_file(self):
+        logger.debug("self.package_name: " + self.package_name)
         atrace_app_path = rhea_config.ATRACE_APP_GZ_FILE_LOCATION.replace(
             "%s", self.package_name) + rhea_config.ATRACE_GZ_FILE
         pull_cmd = ["pull", atrace_app_path, self.gz_atrace_file]
@@ -130,72 +125,17 @@ class TraceProcessor:
                 logger.warning("failed to delete " + atrace_app_path)
         return True, ""
 
-    def read_task_name_from_systrace(self):
-        repair_origin_file(self.systrace_origin_file)
-        with open(self.systrace_origin_file, 'rb') as fo:
-            self.systrace_origin_lines = fo.readlines()
-        find_counts = 0
-        self.tid_and_task_name_dict = dict()
-        """ 
-        parse from lines like
-        <...>-32347   (  32347) [007] .... 239854.417866: task_newtask: pid=32390 comm=.sample.android clone_flags=3d0f00 oom_score_adj=0
-        <...>-32390   (  32347) [005] ...1 239854.417989: task_rename: pid=32390 oldcomm=.sample.android newcomm=Thread 2 oom_score_adj=0
-        <...>-32390   (  32347) [004] .n.1 239854.418157: task_rename: pid=32390 oldcomm=Thread 2 newcomm=lock_test 0 oom_score_adj=0
-        """
-        for line in self.systrace_origin_lines:
-            if "task_newtask: pid=" in line:
-                map = parse_key_value_pairs(line)
-                if "pid" in map.keys() and "comm" in map.keys():
-                    self.tid_and_task_name_dict[map["pid"]] = map["comm"]
-            elif "task_rename: pid=" in line:
-                map = parse_key_value_pairs(line)
-                if "pid" in map.keys() and "newcomm" in map.keys():
-                    self.tid_and_task_name_dict[map["pid"]] = map["newcomm"]
-        """
-        parse from USER PID TID CMD
-        """
-        for line in self.systrace_origin_lines:
-            if find_counts is 2:
-                no_shifter_line = line.replace("\n", "")
-                if no_shifter_line is not None:
-                    section = no_shifter_line.split(" ")
-                    result = list()
-                    for value in section:
-                        if value is not '':
-                            result.append(value)
-                    if len(result) < 4:
-                        break
-                    self.tid_and_task_name_dict[result[2]] = result[3]
-            if line.startswith("USER"):
-                special_key = ' '.join(line.split())
-                if special_key == "USER PID TID CMD":
-                    find_counts = find_counts + 1
-
     def _standardize_internal(self):
         logger.debug("start to standardize file %s, please wait.", self.raw_atrace_file)
-        start_time = time.time()
         getcontext().prec = 32
         logger.debug("start to unzip file %s, please wait.", self.raw_atrace_file)
         unzip_result, error_msg = self.unzip_rhea_original_file()
         logger.debug("unzip file %s finished %s %s.", self.raw_atrace_file, unzip_result, error_msg)
         if not unzip_result:
             return False, error_msg
-        self.systrace_origin_lines = open(self.systrace_origin_file, 'rb').readlines()
-        if self.systrace_origin_lines <= 7:
-            logger.error("systrace %s write unfinished", self.systrace_origin_file)
-            return
-        for tmp_index in range(0, len(self.systrace_origin_lines)):
-            if "# tracer: nop" in self.systrace_origin_lines[tmp_index]:
-                self.systrace_flag = tmp_index + 1
-                while self.systrace_origin_lines[self.systrace_flag].startswith('#'):
-                    self.systrace_flag = self.systrace_flag + 1
-        time_pattern = re.compile('[0-9]{1,10}[\.][0-9]{6}')
-        time_trace_line = time_pattern.search(self.systrace_origin_lines[self.systrace_flag])
-        if time_trace_line is not None and ('kernel time now' not in self.systrace_origin_lines[self.systrace_flag]):
-            self.first_systrace_time = Decimal(time_trace_line.group(0))
+
         self.rhea_origin_lines = repair_rhea_lines_nosort(open(self.raw_atrace_file, 'rb').readlines())
         pid = None
-        self.read_task_name_from_systrace()
         TraceEnhance(self).enhance()
         s_symbol = " [001] ...1 "
         t_symbol = ": tracing_mark_write:"
@@ -274,10 +214,7 @@ class TraceProcessor:
             if self.is_real_monotonic:
                 atrace_time = str(Decimal(atrace_time) + Decimal(self.monotonic_difference))
             sys_line = task_name + "-" + format_tid + " " + format_pid + s_symbol + atrace_time + t_symbol + atrace
-            standard_line = task_name + "-" + format_tid + s_symbol + atrace_time + t_symbol + atrace
             if sys_line is not None:
-                self.rhea_trace_lines.append(sys_line)
-            if standard_line is not None:
                 self.rhea_standard_lines.append(sys_line)
             index = index + 1
             print_progress(index, length, prefix='Write standard trace file:', suffix='Complete', bar_length=80)
@@ -292,45 +229,18 @@ class TraceProcessor:
             f_rhea_standard.write(line)
         f_rhea_standard.close()
 
-    def merge_atrace_systrace(self):
-        logger.debug("merge atrace and systrace file")
-        start_time = time.time()
-        """when open merged trace file in chrome, chrome will report an error, so remove this line"""
-        slice_err_ = "if(ts<slice.start){throw new Error('Slice '+slice.title+' end time is before its start.');}"
-        # merge and repair real trace lines
-        if self.systrace_flag == 0:
-            logger.error("systrace %s write unfinished, because of missing tracer: nop ",
-                         self.systrace_origin_file)
-            return
-        f_target = open(self.merge_file, 'w')
-        for systrace_line in self.systrace_origin_lines[:self.systrace_flag]:
-            if slice_err_ in systrace_line:
-                systrace_line = systrace_line.replace(slice_err_, "")
-            f_target.write(systrace_line)
-        real_trace_lines = repair_trace_lines(self.systrace_origin_lines[self.systrace_flag:-6] + self.rhea_trace_lines,
-                                              "merger trace file")
-        for line in real_trace_lines:
-            f_target.write(line)
-        for line in self.systrace_origin_lines[-6:]:
-            f_target.write(line)
-        f_target.close()
-        logger.info("congratulation! %s assembles finished, time cost %s s", os.path.abspath(self.merge_file),
-                    str(time.time() - start_time))
-
     def processor(self):
         result, error_msg = self._standardize_internal()
         if result:
             logger.info("write trace data to file, it maybe take a long time...")
             p = multiprocessing.Pool(4)
             aObj = p.apply_async(self, args=('write_standard_file',))
-            aObj = p.apply_async(self, args=('merge_atrace_systrace',))
             p.close()
             p.join()
         else:
             logger.info("unzip atrace file: %s, %s", result, error_msg)
 
     def __call__(self, sign):
+        logger.debug("__call__: " + sign)
         if sign == 'write_standard_file':
             return self.write_standard_file()
-        elif sign == 'merge_atrace_systrace':
-            return self.merge_atrace_systrace()

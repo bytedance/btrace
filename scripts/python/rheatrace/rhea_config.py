@@ -20,7 +20,7 @@ VERSION_CODE = "1.1.0"
 
 ORIGIN_SYSTRACE_FILE = "systrace-origin.html"
 ORIGIN_SYSTRACE_FS_FILE = 'systrace-fs-origin.html'
-ATRACE_APP_GZ_FILE_LOCATION = "sdcard/rhea-trace/%s/"
+ATRACE_APP_GZ_FILE_LOCATION = "/sdcard/Android/data/rhea.sample.android/cache/rhea-trace/%s/"
 ATRACE_GZ_FILE = 'rhea-atrace.gz'
 ATRACE_BINDER_FILE = 'binder.txt'
 ATRACE_RAW_FILE = 'rhea-atrace'

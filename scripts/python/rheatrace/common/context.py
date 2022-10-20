@@ -47,6 +47,7 @@ class Context:
         self.advanced_systrace_time = options.advanced_systrace_time
         self.list_categories = options.list_categories
         self.debug = options.debug
+        self.only_decode_atrace = options.only_decode_atrace
 
     def set_params(self, key, value):
         if self.environment_params is not None:
