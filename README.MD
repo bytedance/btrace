@@ -6,7 +6,7 @@
 ![](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
 ![](https://img.shields.io/badge/release-1.0.1-red.svg?style=flat)
 
-btrace(AKA RheaTrace) is a high performance Android trace tool which is based on [Systrace](https://developer.android.com/topic/performance/tracing), it support to [define custom events](https://developer.android.com/topic/performance/tracing/custom-events) automatically during building apk and using [bhook](https://github.com/bytedance/bhook) to provider more native events like IO.
+btrace(AKA RheaTrace) is a high performance Android trace tool which is based on [Systrace](https://developer.android.com/topic/performance/tracing), it support to [define custom events](https://developer.android.com/topic/performance/tracing/custom-events) automatically during building apk and using [bhook](https://github.com/bytedance/bhook) to provide more native events like IO.
 
 ## Key features
 Support to define custom events automatically, inject **Trace#beginSection(String)** and **Trace#endSection()** into app methods during building apk.
