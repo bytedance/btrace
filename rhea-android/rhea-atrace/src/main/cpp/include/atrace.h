@@ -38,7 +38,7 @@ public:
   int32_t StopTrace();
 
   bool IsATrace(int fd, size_t count);
-  void LogTrace(const void *buf, size_t count);
+  void LogTrace(const void *buf, size_t count) const;
 
   bool IsATraceStarted() const {
     return atrace_started_;
@@ -52,9 +52,9 @@ private:
   int32_t InstallAtraceProbe();
 
   static int FillTimestampAndTid(char *tmp_buffer, pid_t tid) {
-      double timestamp = systemTime(SYSTEM_TIME_BOOTTIME) / 1000000000.0;
-      int timestamp_int = (int)timestamp;
-      int timestamp_decimals = (timestamp - timestamp_int) * 1000000;
+      int64_t timestamp = elapsedRealtimeNanos();
+      int timestamp_int = (int) (timestamp / 1000000000);
+      int timestamp_decimals = (int) (timestamp % 1000000000);
 
       int shadow = timestamp_int;
       int timestamp_length = 0;
@@ -70,8 +70,8 @@ private:
           i++;
       }
       tmp_buffer[timestamp_length] = '.';
-      //7 means total length of '.'(1) and decimals(6)
-      timestamp_length += 7;
+      //10 means total length of '.'(1) and decimals(9)
+      timestamp_length += 10;
       i = 0;
       while(timestamp_decimals) {
           tmp_buffer[timestamp_length - 1 - i] = timestamp_decimals % 10 + '0';
@@ -79,8 +79,8 @@ private:
           i++;
       }
       //decimals maybe start with 0.
-      if (i < 6) {
-          while (0 < (6 - i)) {
+      if (i < 9) {
+          while (0 < (9 - i)) {
               tmp_buffer[timestamp_length - i - 1] = '0';
               i++;
           }

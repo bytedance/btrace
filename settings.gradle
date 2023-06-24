@@ -1,11 +1,17 @@
 include ':rhea-gradle-plugin'
+include ':rhea-trace-processor'
 include ':rhea-core'
 include ':rhea-atrace'
+include ':rhea-precise-instrumentation'
 include ':rhea-common'
+include ':rhea-build-common'
 
 include ':app'
 
 project(':rhea-core').projectDir = new File("./rhea-android/rhea-core")
 project(':rhea-atrace').projectDir = new File("./rhea-android/rhea-atrace")
 project(':rhea-gradle-plugin').projectDir = new File("./rhea-build/rhea-gradle-plugin")
+project(':rhea-precise-instrumentation').projectDir = new File("./rhea-build/rhea-precise-instrumentation")
+project(':rhea-build-common').projectDir = new File("./rhea-build/rhea-build-common")
+project(':rhea-trace-processor').projectDir = new File("./rhea-tool/rhea-trace-processor")
 rootProject.name = "RheaTrace"

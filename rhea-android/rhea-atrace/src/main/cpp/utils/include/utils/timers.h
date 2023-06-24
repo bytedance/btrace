@@ -89,5 +89,6 @@ nsecs_t systemTime(int clock);
 int64_t uptimeMillis();
 int64_t elapsedRealtimeMillis();
 int64_t elapsedRealtimeMicros();
+int64_t elapsedRealtimeNanos();
 
 __END_CDECLS

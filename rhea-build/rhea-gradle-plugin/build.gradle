@@ -6,26 +6,11 @@ group POM_GROUP_ID
 dependencies {
     compileOnly gradleApi()
     compileOnly "com.android.tools.build:gradle:$agp_version"
-    implementation project(":rhea-common")
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "com.bytedance.android.byteX:common:$bytex_version"
+    implementation project(":rhea-build-common")
+    implementation project(':rhea-precise-instrumentation')
 }
 
-sourceSets {
-    main {
-        kotlin {
-            srcDir 'src/main/java'
-        }
-
-        resources {
-            srcDir 'src/main/resources'
-        }
-    }
-}
-
-
-repositories {
-    google()
-    jcenter()
-}
 apply from: rootProject.file('gradle/java-artifacts.gradle')
 apply from: rootProject.file('gradle/gradle-maven-upload.gradle')

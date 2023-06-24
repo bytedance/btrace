@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "shadowhook_util.h"
 #include <dlfcn.h>
 #include <errno.h>
 #include <stdint.h>
@@ -28,12 +29,16 @@
 #include <utils/debug.h>
 #include <utils/timers.h>
 #include <second_party/byte_hook/bytehook.h>
+#include <features/klass/class_linker_proxy.h>
+#include <features/thread/thread_proxy.h>
+#include <features/binder/binder_proxy.h>
 
 #include "hook_bridge.h"
 #include "features/io/io_proxy.h"
 #include "features/trace/trace_proxy.h"
 #include "trace.h"
 #include "trace_provider.h"
+#include "features/render/render_proxy.h"
 
 namespace bytedance {
 namespace atrace {
@@ -41,7 +46,7 @@ namespace atrace {
 namespace {
 
 struct hook_spec {
-  char *fname;
+  const char *fname;
   void *hook_func;
 };
 
@@ -110,6 +115,7 @@ void HookForATrace() {
     }
 
   if (TraceProvider::Get().IsEnableIO()) {
+    ALOGI("start rhea category io");
 
     auto& iolist = GetIoList();
     for (auto& spec : iolist) {
@@ -126,6 +132,7 @@ void HookForATrace() {
   }
 
   if (TraceProvider::Get().isMainThreadOnly()) {
+    ALOGI("start rhea mainThreadOnly");
     for (auto& spec : trace_function_hooks) {
       bytehook_stub_t stub = bytehook_hook_all(
               nullptr,
@@ -135,6 +142,66 @@ void HookForATrace() {
               nullptr);
       stubs.push_back(stub);
     }
+  }
+  if (TraceProvider::Get().isEnableClassLoad()) {
+      ALOGI("start rhea category class");
+      bytedance::atrace::klass::hook();
+  }
+  if (TraceProvider::Get().isEnableThread()) {
+    ALOGI("start rhea category thread");
+    bytehook_stub_t stub = bytehook_hook_all(
+            nullptr,
+            "pthread_create",
+            (void *) bytedance::atrace::pthread_create_proxy,
+            HookCallback,
+            nullptr);
+    stubs.push_back(stub);
+    bytedance::atrace::shadowhook::hook_sym_name(
+            "libart.so",
+            "_ZN3artL12Thread_sleepEP7_JNIEnvP7_jclassP8_jobjectli",
+            (void *) JNI_Thread_sleep_proxy);
+  }
+  if (TraceProvider::Get().isEnableBinder()) {
+    ALOGI("start rhea category binder");
+    bytehook_stub_t stub = bytehook_hook_partial(
+            AllowFilter,
+            nullptr,
+            nullptr,
+            "_ZN7android14IPCThreadState8transactEijRKNS_6ParcelEPS1_j",
+            (void *) bytedance::atrace::IPCThreadState_transact_proxy,
+            HookCallback,
+            nullptr);
+    stubs.push_back(stub);
+
+    stub = bytehook_hook_partial(
+            AllowFilter,
+            nullptr,
+            nullptr,
+            "_ZN7android6Parcel19writeInterfaceTokenERKNS_8String16E",
+            (void *) bytedance::atrace::Parcel_writeInterfaceToken_proxy,
+            HookCallback,
+            nullptr);
+    stubs.push_back(stub);
+
+#ifdef __LP64__
+#define SYM_writeInterfaceToken "_ZN7android6Parcel19writeInterfaceTokenEPKDsm"
+#else
+#define SYM_writeInterfaceToken "_ZN7android6Parcel19writeInterfaceTokenEPKDsj"
+#endif
+
+    stub = bytehook_hook_partial(
+            AllowFilter,
+            nullptr,
+            nullptr,
+            SYM_writeInterfaceToken,
+            (void *) bytedance::atrace::Parcel_writeInterfaceToken_proxy_12,
+            HookCallback,
+            nullptr);
+    stubs.push_back(stub);
+  }
+  if (TraceProvider::Get().isEnableDetailRender()) {
+    ALOGI("start rhea category render");
+    bytedance::atrace::render::start();
   }
 }
 

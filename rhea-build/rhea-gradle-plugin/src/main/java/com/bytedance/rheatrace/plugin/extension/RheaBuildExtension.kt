@@ -16,14 +16,21 @@
 
 package com.bytedance.rheatrace.plugin.extension
 
-open class RheaBuildExtension(
+import com.ss.android.ugc.bytex.common.BaseExtension
 
-    var compilation: TraceCompilation? = null,
+open class RheaBuildExtension : BaseExtension() {
+    init {
+        super.enableInDebug(true)
+    }
 
     var runtime: TraceRuntime? = null
+    var compilation: TraceCompilation? = null
 
-) {
     override fun toString(): String {
-        return "RheaBuildExtension(compilation=$compilation, runtime=$runtime)"
+        return "RheaBuildExtension(compilation=$compilation)"
+    }
+
+    override fun getName(): String {
+        return "rheaTrace"
     }
 }

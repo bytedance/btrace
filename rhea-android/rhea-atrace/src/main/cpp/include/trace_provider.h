@@ -36,24 +36,20 @@ enum ErrorCode {
     INSTALL_ATRACE_FAILED = -6,
 };
 
-enum ConfigKey {
-  kIO,
-  KMainThreadOnly,
-  kMemory,
-  kClassLoad,
-  kEnd,
-};
-
 class TraceProvider {
 
 public:
   static TraceProvider& Get();
 
-  void SetConfig(ConfigKey key, int64_t val);
+  void SetCategories(std::vector<std::string> categories);
   bool IsEnableIO() const;
   bool isMainThreadOnly() const;
   bool isEnableMemory() const;
   bool isEnableClassLoad() const;
+  bool isEnableThread() const;
+  bool isEnableBinder() const;
+  bool isEnableDetailRender() const;
+  void SetMainThreadOnly(bool mainOnly);
   void SetMainThreadId(pid_t tid);
   pid_t GetMainThreadId() const;
   void SetBufferSize(size_t buffer_size);
@@ -67,7 +63,8 @@ private:
   TraceProvider();
   ~TraceProvider();
 
-  int16_t atrace_config_[kEnd]{};
+  std::vector<std::string> categories_;
+  bool mainThreadOnly_ = false;
   pid_t main_thread_id_{0};
   size_t buffer_size_{100000};
   std::vector<std::string> block_hook_libs;

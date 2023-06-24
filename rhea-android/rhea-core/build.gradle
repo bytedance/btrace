@@ -36,6 +36,7 @@ dependencies {
     implementation project(':rhea-atrace')
     implementation project(':rhea-common')
     implementation 'androidx.core:core:1.3.2'
+    implementation 'org.nanohttpd:nanohttpd:2.2.0'
 }
 
 apply from: rootProject.file('gradle/android-artifacts.gradle')

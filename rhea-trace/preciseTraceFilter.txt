@@ -1,0 +1,41 @@
+[package]
+# Whether to enable preciseinstrumentation
+-enablepreciseinstrumentation
+
+#Inclusion lock
+-tracesynchronize
+
+#Inclusion native
+-tracenative
+
+#Inclusion aidl
+-traceaidl
+
+#Inclusion loop
+-traceloop
+
+#Turn off the embedded time characteristic function
+-disabledefaultpreciseinstrumentation
+
+#Focus on large methods: A method contains several method call bytecode instructions
+-tracelargemethod 40
+
+#Method calls the following time-consuming method and needs to be staked
+-traceclassmethods rhea.sample.android.app.PreciseInstrumentationTest {
+   test
+}
+
+-traceclassmethods * {
+   test
+}
+
+#Method calls the following annotation and needs to be staked
+-tracemethodannotation org.greenrobot.eventbus.Subscribe
+
+#Methods under the class need to be staked
+-traceclass io.reactivex.internal.observers.LambdaObserver
+
+# trace method with params value.
+-allowclassmethodswithparametervalues rhea.sample.android.app.RheaApplication {
+   printApplicationName(*java.lang.String);
+}

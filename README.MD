@@ -1,184 +1,146 @@
-## btrace
+# btrace
 
 [README 中文版](./README.zh-CN.md)
 
 ![](https://img.shields.io/badge/license-Apache-brightgreen.svg?style=flat)
 ![](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
-![](https://img.shields.io/badge/release-1.0.1-red.svg?style=flat)
+![](https://img.shields.io/badge/release-2.0.0-red.svg?style=flat)
 
-btrace(AKA RheaTrace) is a high performance Android trace tool which is based on [Systrace](https://developer.android.com/topic/performance/tracing), it support to [define custom events](https://developer.android.com/topic/performance/tracing/custom-events) automatically during building apk and using [bhook](https://github.com/bytedance/bhook) to provider more native events like IO.
 
-## Key features
-Support to define custom events automatically, inject **Trace#beginSection(String)** and **Trace#endSection()** into app methods during building apk.
+## Major Update
+1. **User Experience:** We now support Windows! No more dependency on Python 2.7 and storage permissions! The scripting language has been changed to Java reducing the interruption caused by the usability issue of the scripting tool to almost zero! And we've switched to the PB protocol for trace artifacts, resulting in a 70% reduction in storage needs and a 7x speed boost when opening trace files.
+2. **Performance Experience:** Rewriting the method Trace collection logic, switching data from strings to integers, reducing memory usage by 80%. Data storage is changed to mmap mode, optimizing lock-free queue logic, providing accurate instrumentation strategies, and further reducing performance loss to 15% under millions of methods instrumentation!
+3. **Monitoring Data:** Adding 4 new data monitoring capabilities, including detailed data on Rendering, Binder, thread creation, and Wait/Notify/Park/Unpark!
 
-Provider extra native events like IO to determine time-consuming reasons for methods conveniently.
+## Integration
+### Project Configuration
 
-Support to only capture trace events of main thread on demand.
+Add rhea-gradle-plugin as a dependency in the build.gradle file in the root directory of your project:
 
-Easily use, high stability, lower latency than systrace.
-
-## Getting started
-Import rhea-gradle-plugin as a dependency in your main build.gradle in the root of your project.
-
-```
+``` js
 buildscript {
     repositories {
         ...
-        mavenCentral()
+        maven {
+            url "https://artifact.bytedance.com/repository/byteX/"
+        }
         ...
     }
     dependencies {
-        classpath 'com.bytedance.btrace:rhea-gradle-plugin:1.0.1'
+        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.0'
     }
 }
 
 allprojects {
     repositories {
         ...
-        mavenCentral()
+        maven {
+            url "https://artifact.bytedance.com/repository/byteX/"
+        }
         ...
     }
 }
 ```
 
-Then "apply" the plugin and import dependencies by adding the following lines to your app/build.gradle.
+Then, apply the following plugins and dependencies to the app/build.gradle file.
 
-```
+``` js
 dependencies {
-    //rheatrace core lib
-    implementation "com.bytedance.btrace:rhea-core:1.0.1"
-}
-...
-rheaTrace {
+    // rheatrace core lib
+    implementation "com.bytedance.btrace:rhea-core:2.0.0"
 
-   compilation {
-      //for reducing apk size, you can use method id to trace custom events, default false.
-      traceWithMethodID = false 
-      //decide which methods you don't want trace, default null.
-      traceFilterFilePath = "${project.rootDir}/rhea-trace/traceFilter.txt"
-      //keep name of custom event with specific method id, default null.
-      applyMethodMappingFilePath = "${project.rootDir}/rhea-trace/keep-method-id.txt"
-  }
-
-   runtime {
-      //capture trace events of main thread only, default false.
-      mainThreadOnly true 
-      //start to capture trace events when launch app, default true.
-      startWhenAppLaunch true
-      //set a specified size of ring buffer which used to store atrace data in memory.
-      atraceBufferSize "500000"
-   }
 }
 ...
 apply plugin: 'com.bytedance.rhea-trace'
+...
+rheaTrace {
+   compilation {
+      traceFilterFilePath = "${project.rootDir}/trace-filter/traceFilter.txt"
+      needPackageWithMethodMap = true
+      applyMethodMappingFilePath = ""
+   }
+}
 ```
-About `rheaTrace `, Learn more from the [RheaTrace Gradle Config](./GRADLE_CONFIG.zh-CN.MD).
 
-At last,  check python version in your computer, RheaTrace only support python 2.7 because of systrace, and then config systrace environment into ***~/.bash_profile*** file.
+### Plugin Configuration
 
-```
-export PATH=${PATH}:/Users/${user_name}/Library/Android/sdk/platform-tools/systrace
-```
+RheaTrace 2.0 simplifies the compilation plugin configutation, requiring only a compilation configuration to control the behavior during compilation. The runtime configuration in RheaTrace 1.0 is deprecated, but to ensure compatibility when upgrading, we still keep the runtime parameter configuration, even though it does not affect behavior. Instead, in RheaTrace 2.0, dynamic configuration is achieved through command-line arguments in the script, which will be described in detail later.
+
+|Parameter| Default Value |Description|
+|---|---------------|---|
+|traceFilterFilePath| null          |This file determines which methods need to be instrumented, and its usage is consistent with RheaTrace 1.0. Please refer to：[RheaTrace Gradle Plugin Configuration](GRADLE_CONFIG.MD)|
+|applyMethodMappingFilePath| null          |The method ID of the device can be specified by specifying the methodMapping.txt file path output from the last compilation to ensure that the method IDs of multiple compilations are consistent.|
+|needPackageWithMethodMap| true          |Whether to package the methodMapping.txt file inside the apk.|
+
 ## Usage
+To use RheaTrace 2.0, follow these instructions:
 
-Open terminal, change directory to **btrace/scripts/python/rheatrace**, execute command below.
-
+1. Ensure that your computer has integrated adb and Java environment.
+2. Connect your phone to your computer and ensure it is recognized by adb devices.
+3. Install the APK that integrates RheaTrace 2.0 on your phone.
+4. Download the latest script from "Script Management" below to your computer.
+5. In the directory where the computer script is located, execute the following command.
+```shell
+java -jar rhea-trace-shell.jar -a ${your app package name} -t 10 -o output.pb -r rhea.all sched -fullClassName
 ```
-python rheatrace.py -v
-```
-Then you will see output below.
+6. The trace artifact can be analyzed by https://ui.perfetto.dev/ for analysis.
 
-```
-Current version is 1.0.1.
-```
-RheaTrace retains the [Systrace command](https://developer.android.com/topic/performance/tracing/command-line) parameters, if you have used Systrace before, you will quickly learn how to use RheaTrace.
+### Script Management
+|Version|Release Date|Download|Release Notes|
+|---|---|---|---|
+|2.0.0|2023-06-24|[rhea-trace-shell-2.0.0.jar](https://oss.sonatype.org/service/local/repositories/releases/content/com/bytedance/btrace/rhea-trace-processor/2.0.0/rhea-trace-processor-2.0.0.jar)|2.0.0 first release|
 
-### Syntax
-To generate the HTML report for app, you need to run `rheatrace` from the command line using the following syntax:
+### Parameter Description
+The following table describes the parameters for RheaTrace 2.0 command-line arguments:
 
-```
-python rheatrace.py [options] [categories]
-```
-For example, the following command calls `rheatrace` to record device activity and generate a HTML report named mynewtrace.html. This list of categories is a reasonable default list for most devices.
-
-```
-python rheatrace.py -a rhea.sample.android -t 5 -o ./output/mynewtrace.html sched freq idle am wm gfx view binder_driver hal dalvik camera input res
-```
-
-### Global options
-|  Global options   | Description |
-|  ----  | ----  |
-| -h \| --help  | Show the help message. |
-| -l \| --list-categories  | Lists the tracing categories available to your connected device. |
-
-### Commands and command options
-|  Commands and options	   | Description |
-|  ----  | ----  |
-| -o file  | Write the HTML trace report to the specified file. If you don't specify this option, rheatrace saves your report to the same directory as rheatrace.py and names it systrace.html.|
-| -t N \| --time=N  | Trace device activity for N seconds. If you don't specify this option, rheatrace prompts you to end the trace by pressing the Enter key from the command line. |
-|  -b N \| --buf-size=N  | Use a trace buffer size of N kilobytes. This option lets you limit the total size of the data collected during a trace.|
-|  -k functions\|--ktrace=functions  | Trace the activity of specific kernel functions, specified in a comma-separated list.|
-|  -a app-name\|--app=app-name  | Enable tracing for specified app, this option must be set. The app must contain tracing instrumentation calls from the Trace class. You should specify this option whenever you profile your app—many libraries, such as RecyclerView, include tracing instrumentation calls that provide useful information when you enable app-level tracing.|
-|  --from-file=file-path  | Create an interactive HTML report from a file, such as TXT files that include raw trace data, instead of running a live trace.|
-|  -e device-serial\|--serial=device-serial  | Conduct the trace on a specific connected device, identified by its device serial number.|
-| categories	| Include tracing information for the system processes you specify, such as gfx for system processes that render graphics. You can run rheatrace with the -l command to see a list of services available to your connected device.|
-
-### Extensive options
-
-|  Global options   | Description |
-|  ----  | ----  |
-| -r \| --restart  | Before tracing app activities, force to stop the app and restart it. |
-| -v \| --version  | Check the current rheatrace version. |
-| --advanced-sys-time \| --advanced-sys-time  | How long in advance to open systrace, default value is 2 seconds.|
-| --debug \| --debug | Whether to enable debug log output. |
+#### Required Parameters
 
 
-## Easter Egg Feature
+|Parameter|Default Value|Description|
+|---|---|---|
+| -a $applicationName|N/A||Specifies the package name of your app|
 
-RheaTrace provides Gradle compilation configuration to change the tracking behavior of the App when it is running, but it needs to be repackaged every time, which work low efficiency. So we provide file configuration ways to change tracking behavior.
+#### Optional Parameters
 
-Create a Properties format file named `rheatrace.config`, the configurations that can be written are:
+|Parameter|Default Value|Description|
+|---|---|---|
+| -o $outputPath|N/A|Specifies the path where the trace artifact is saved. By default, the value is autogenerated based on the timestamp.|
+| -t $timeInSecond|5|Specifies the duration of the tracing period, in seconds.|
+|-mode $mode|By device|Specifies the tracing mode. Two modes are currently supported:1. perfetto: The default mode for systems 8.1 and above, allowing trace collection for your application functions as well as system atrace and ftrace.2. simple: The default mode for systems below 8.1, allowing trace collection for your application functions as well as system atrace.
+|-maxAppTraceBufferSize $size|500000000|Specifies the buffer size used during trace collection, in bytes. Generally, this parameter does not need to be configured unless you encounter a prompt similar to the following:MaxAppTraceBufferSize is too small. Expected 100515704 Actual 100000000. Add -maxAppTraceBufferSize 100515704 to your commandNote: maxAppTraceBufferSize only takes effect during the first trace after App startup.|
+|-threshold $ns|0|Specifies the function time threshold during trace collection, in nanoseconds. This parameter can reduce the size of the tracing artifact when the tracing period is long.|
+|-s $serial||Specifies the device connected by adb.|
+|-mainThreadOnly|N/A|Only traces the main thread.|
+|-r||Automatically restarts the app to capture the startup trace.|
+|-fullClassName||Enabling the package name for trace information.|
+|rhea.binder||Enables binder information enhancement.|
+|rhea.render||Enables rendering monitoring capabilities.|
+|rhea.io||Enables I/O monitoring capabilities.|
+|rhea.thread||Enables thread creation monitoring capabilities.|
+|rhea.block||Enables park/unpark/wait/notify monitoring functions.|
+|rhea.all||Enables all of the above RheaTrace enhanced monitoring capabilities. |
+|-debug||Prints debugging logs.|
+|--list||Displays a list of supported categories for the device.||
 
-```
-io=true
-classLoad=true
-memory=true
-mainThreadOnly=true
-atraceBufferSize=100000
-startWhenAppLaunch=true
-```
-
-Then, push the file to the device directory `sdcard/rhea-trace/${application package name}`, and then restart the application to take effect.
-
-| options   | defaults  | description  |
-|  ----  | ----  | ----  |
-| io  | true | Whether to enable tracking io native related methods.|
-| classLoad  | fasle | Whether to enable tracking class loading events, only supports Android 8.0 and above, and the app build type is debuggable.|
-| memory  | fasle | Whether to enable tracking memory access events, only supports Android 8.0 and above, and the app build type is debuggable.|
-| mainThreadOnly  | fasle | Whether to capture trace events only on the main thread, if you only care about the main thread trace events, please set it to true.|
-| atraceBufferSize  | 100000 | Specify the size of the ring buffer to store atrace data in the memory. If its value is too small, the trace data will be incompletely written. If you capture multi-threaded trace data, it is recommended to set the value to about one million; the minimum value is 10,000. The maximum value is 5 million.|
-| startWhenAppLaunch  | true | Start to capture tracking events at the beginning of the app startup. If you do startup optimization, it is recommended to keep the value as true.|
-
-
+## Technology Principle
+If you are interested in the internal details of RheaTrace 2.0, you can refer to the document: [RheaTrace 2.0 Internal Principle in Detail!](INTRODUCTION.MD) . 
 
 ## Known Issues
+|No.| Problems                                                                                                                                                                                                                                                                                                      | Advice                                                                                                                                                                                                                                                                                      |
+|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|1| Some custom ROMs may encounter failures in Perfetto trace acquisition, and the error message is as follows:               <blockquote>Error: systrace file not found:rheatrace.workspace/systemTrace.trace<br/> Tips: your device may not support perfetto. please retry with `-mode simple`. </blockquote>  | 1. Try restarting the phone and try again.2. If the problem is not solved, retry with  -mode simple.                                                                                                                                                                                        |
+|2| Devices that do not support Perfetto (mostly systems before 8.1) cannot collect system information such as CPU scheduling.                                                                                                                                                                                    | Try with -mode simple.                                                                                                                                                                                                                                                                      |
+|3 | If you're using a 32-bit APK, it can cause crashes due to out-of-memory errors.                                                                                                                                                                                                                               | To fix this, you can either switch to a 64-bit package, or if you have to use 32-bit, try reducing the virtual memory usage by lowering the bufferSize and configuring the method collection threshold. This will allow you to collect longer traces without using too much virtual memory. | 
+|4 | If you're having issues with circular dependencies because methodMapping is built into the APK and depends on mergeAssets                                                                                                                                                                                     | You can turn off the built-in methodMapping function. You can do this by setting needPackageWithMethodMap to false in the Gradle plugin configuration. However, if you need to use the btrace function, you'll have to manually provide the path of the methodMapping using the -m option.  |
+ |5 | AGP 7.0+ is not supported yet                                                                                                                                                                                                                                                                                 |                                                                                                                                                                                                                                                                                             |
 
-1. RheaTrace only support python2.7, please check your python environment.
-2. RheaTrace does not currently support Windows.
-3. RheaTrace only support capture main process trace events.
-4. RheaTrace need read and write permissions of external storage, so you should grant the permission manually.
-5. if you can't open output file `systrace.html` directly, please using `perfetto` to load it.
 
-## Support
-1. Communicate on GitHub issues.
-2. Study the source code.
-3. Check [wiki](./INTRODUCTION.MD) or FAQ for help.
-4. Contact us kisson_cjw@hotmail.com.
-5. Join QQ group chat.
+## Feedback
+We've made a lot of improvements in RheaTrace 2.0, including better error prompts. There might still be some cases where the prompts aren't accurate enough or the messages aren't clear. If you run into any issues, just give us a shout in the Lark group below, and we'll do our best to help you out. We always appreciate any other feedback or suggestions you might have too, thanks you!
 
-![](./assets/btrace-qq.jpeg)
+![](./assets/btrace-lark.png)
 
-## Contributing
+## Contributes
 
 [Contributing Guide](./CONTRIBUTING.MD)
 

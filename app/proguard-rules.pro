@@ -21,5 +21,3 @@
 #-renamesourcefileattribute SourceFile
 -dontwarn kotlinx.coroutines.flow.**
 
-#不keep的话，int等参数会被优化掉。
--keep class rhea.sample.android.test.ColdBootLogger {*;}

@@ -17,19 +17,23 @@
 package com.bytedance.rheatrace.plugin.compiling.filter
 
 
+import com.bytedance.rheatrace.common.retrace.MappingCollector
 import com.bytedance.rheatrace.plugin.compiling.TraceMethod
-import com.bytedance.rheatrace.plugin.retrace.MappingCollector
+import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.MethodNode
 
 abstract class TraceMethodFilter(val mappingCollector: MappingCollector) {
 
-    abstract fun onMethodNeedFilter(methodNode: MethodNode, traceMethod: TraceMethod): Boolean
+    abstract fun needFilter(methodNode: MethodNode, traceMethod: TraceMethod, classNode: ClassNode): Boolean
 
-    abstract fun onClassNeedFilter(className: String): Boolean
+    abstract fun onMethodNeedFilter(methodNode: MethodNode, traceMethod: TraceMethod, originFullMethod: String): Boolean
 
-    abstract fun isMethodWithParamesValue(methodName: String): Boolean
+    abstract fun onClassNeedFilter(originFullMethod: String): Boolean
 
-    abstract fun getMethodWithParamesValue(methodName: String): List<Int>?
+    abstract fun isMethodWithParamValue(methodName: String): Boolean
+
+    abstract fun getMethodWithParamValue(methodName: String): List<Int>?
 
     abstract fun isBlockMethod(methodName: String): Boolean
+
 }

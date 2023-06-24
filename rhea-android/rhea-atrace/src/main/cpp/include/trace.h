@@ -35,6 +35,9 @@
  *
  * Keep these in sync with frameworks/base/core/java/android/os/Trace.java.
  */
+#include <xcc_fmt.h>
+#include "../utils/include/utils/debug.h"
+
 #define ATRACE_TAG_NEVER            0       // This tag is never enabled.
 #define ATRACE_TAG_ALWAYS           (1<<0)  // This tag is always enabled.
 #define ATRACE_TAG_GRAPHICS         (1<<1)
@@ -96,4 +99,31 @@ static inline void atrace_end()
 {
   void atrace_end_body();
   atrace_end_body();
+}
+
+
+// ATRACE_NAME traces from its location until the end of its enclosing scope.
+#define _PASTE(x, y) x ## y
+#define PASTE(x, y) _PASTE(x,y)
+#define ATRACE_NAME(name) bytedance::atrace::ScopedTrace PASTE(___tracer, __LINE__)(name)
+#define ATRACE_FORMAT(fmt, ...) \
+char PASTE(___buf, __LINE__)[128] = {};\
+xcc_fmt_snprintf(PASTE(___buf, __LINE__), sizeof PASTE(___buf, __LINE__) - 1, fmt, __VA_ARGS__); \
+ATRACE_NAME(PASTE(___buf, __LINE__))
+// ATRACE_RHEA_DRAFT traces with prefix <rhea-draft> and will post-processed by python script.
+#define ATRACE_RHEA_DRAFT(fmt, ...) ATRACE_FORMAT("<rhea-draft>" fmt, __VA_ARGS__)
+
+namespace bytedance {
+    namespace atrace {
+        class ScopedTrace {
+        public:
+            explicit ScopedTrace(const char *name) {
+                ATRACE_BEGIN(name);
+            }
+
+            ~ScopedTrace() {
+              ATRACE_END();
+            }
+        };
+    }
 }

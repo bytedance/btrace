@@ -1,0 +1,23 @@
+apply plugin: "java-library"
+apply plugin: "kotlin"
+
+version POM_VERSION_NAME
+group POM_GROUP_ID
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "org.ow2.asm:asm:$asm_version"
+    implementation "org.ow2.asm:asm-tree:$asm_version"
+    implementation "org.ow2.asm:asm-util:$asm_version"
+    implementation project(':rhea-common')
+    compileOnly gradleApi()
+    compileOnly "com.android.tools.build:gradle:$agp_version"
+}
+
+apply from: rootProject.file('gradle/java-artifacts.gradle')
+apply from: rootProject.file('gradle/gradle-maven-upload.gradle')

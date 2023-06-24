@@ -17,7 +17,7 @@
 package com.bytedance.rheatrace.atrace;
 
 import android.content.Context;
-import android.os.Build;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.Keep;
@@ -26,22 +26,46 @@ import androidx.annotation.RestrictTo;
 
 import com.bytedance.android.bytehook.ByteHook;
 import com.bytedance.android.bytehook.ILibLoader;
-import com.bytedance.rheatrace.common.ReflectUtil;
+import com.bytedance.rheatrace.atrace.render.RenderTracer;
 
 import java.io.File;
-import java.lang.reflect.Method;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 public class RheaATrace {
+
+    private static final AtomicBoolean jniLoadSuccess = new AtomicBoolean(false);
+
+    static {
+        jniLoadSuccess.set(loadJni());
+    }
 
     private static final String TAG = "rhea:atrace";
 
     private static boolean started = false;
 
     private static boolean inited = false;
+    private static File externalDirectory;
 
+    public static boolean isStartWhenAppLaunch() {
+        return nativeStartWhenAppLaunch();
+    }
+
+    public static boolean isMainThreadOnly() {
+        return nativeMainThreadOnly();
+    }
+
+    public static int getHttpServerPort() {
+        return nativeGetHttpServerPort();
+    }
     @MainThread
-    public static boolean start(Context context, File externalDir, Configuration config) {
+    public static boolean start(Context context, File externalDir) {
+        externalDirectory = externalDir;
         if (started) {
             Log.d(TAG, "rhea atrace has been started!");
             return true;
@@ -55,21 +79,12 @@ public class RheaATrace {
                 return false;
             }
         }
-
-        if (config.enableMemory || config.enableClassLoad) {
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
-                try {
-                    Method attachAgentMethod = ReflectUtil.INSTANCE.getDeclaredMethodRecursive(
-                            "android.os.Debug", "attachJvmtiAgent", String.class, String.class, ClassLoader.class);
-                    attachAgentMethod.invoke(null, "librhea-trace.so", null, context.getClassLoader());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } else {
-                Log.w(TAG, "device below android P, failed to trace memory");
-            }
+        BinaryTrace.init(new File(externalDir, "rhea-atrace.bin"));
+        BlockTrace.init();
+        int resultCode = nativeStart(externalDir.getAbsolutePath());
+        if (nativeRenderCategoryEnabled()) {
+            RenderTracer.onTraceStart();
         }
-        int resultCode = nativeStart(externalDir.getAbsolutePath(), config.blockHookLibs, config.atraceBufferSize, assembleATraceConfig(config));
         if (resultCode != 1) {
             Log.d(TAG, "failed to start rhea-trace, errno: " + resultCode);
         } else {
@@ -87,16 +102,71 @@ public class RheaATrace {
             Log.d(TAG, "rhea atrace has not been started!");
             return true;
         }
+        BinaryTrace.stop();
         int resultCode = nativeStop();
         if (resultCode != 1) {
             Log.d(TAG, "failed to stop rhea-trace, errno: " + resultCode);
         } else {
+            try {
+                writeBinderInterfaceTokens();
+            } catch (IOException e) {
+                Log.e(TAG, "failed to write binder interface tokens", e);
+            }
             if (TraceEnableTagsHelper.updateEnableTags()) {
                 started = false;
                 return true;
             }
         }
         return false;
+    }
+
+    private static void writeBinderInterfaceTokens() throws IOException {
+        String[] tokens = nativeGetBinderInterfaceTokens();
+        if (tokens == null) {
+            Log.e(TAG, "writerBinderInterfaceTokens error. may be oom");
+            return;
+        }
+        try (FileWriter writer = new FileWriter(new File(externalDirectory, "binder.txt"))) {
+            long now = SystemClock.uptimeMillis();
+            for (String token : tokens) {
+                writer.write("#");
+                writer.write(token);
+                writer.write("\n");
+                try {
+                    // try $Stub first
+                    for (Field field : Class.forName(token + "$Stub").getDeclaredFields()) {
+                        if (Modifier.isStatic(field.getModifiers()) && field.getType() == int.class) {
+                            appendFieldValue(writer, field);
+                        }
+                    }
+                } catch (ClassNotFoundException e) {
+                    try {
+                        // then fall back to self
+                        for (Field field : Class.forName(token).getDeclaredFields()) {
+                            if (Modifier.isStatic(field.getModifiers()) && field.getType() == int.class) {
+                                appendFieldValue(writer, field);
+                            }
+                        }
+                    } catch (ClassNotFoundException ignore) {
+                    } catch (IllegalAccessException ignore) {
+                    }
+                } catch (IllegalAccessException ignore) {
+                }
+            }
+            long cost = SystemClock.uptimeMillis() - now;
+            Log.d(TAG, "writeBinderInterfaceTokens cost " + cost + "ms");
+        }
+    }
+
+    private static void appendFieldValue(FileWriter writer, Field field) throws IllegalAccessException, IOException {
+        field.setAccessible(true);
+        Object value = field.get(null);
+        if (value instanceof Integer) {
+            writer.write(field.getName());
+            writer.write(":");
+            writer.write(value.toString());
+            writer.write("\n");
+        }
     }
 
     private static boolean init() {
@@ -129,64 +199,55 @@ public class RheaATrace {
         }
     }
 
-    private static int assembleATraceConfig(Configuration config) {
-        int atraceConfig = 0;
-        if (config.enableIO) {
-            atraceConfig = atraceConfig | 1;
-        }
-        if (config.mainThreadOnly) {
-            atraceConfig = atraceConfig | 2;
-        }
-        if (config.enableMemory) {
-            atraceConfig = atraceConfig | 4;
-        }
-        if (config.enableClassLoad) {
-            atraceConfig = atraceConfig | 8;
-        }
-        return atraceConfig;
-    }
-
     private static boolean loadJni() {
-        try {
-            System.loadLibrary("rhea-trace");
-        } catch (Throwable error) {
-            Log.d(TAG, "failed to load rhea-trace so.");
-            return false;
+        if (jniLoadSuccess.get()) {
+            return true;
         }
+        System.loadLibrary("rhea-trace");
         return true;
     }
 
+    public static int getArch() {
+        return nativeGetArch();
+    }
+
     @MainThread
-    private static native int nativeStart(String atraceLocation, String blockHookLibs, long bufferSize, int atraceConfig);
+    private static native int nativeStart(String atraceLocation);
 
     @MainThread
     private static native int nativeStop();
 
+    private static native boolean nativeStartWhenAppLaunch();
+
+    public static native boolean nativeMainThreadOnly();
+
+    public static native boolean nativeRenderCategoryEnabled();
+
+    public static native int nativeGetHttpServerPort();
+
+    private static native String[] nativeGetBinderInterfaceTokens();
+
+    private static native int nativeGetArch();
+
     public static class Configuration {
 
-        final boolean enableIO;
+        final List<String> categories;
 
         final boolean mainThreadOnly;
-
-        final boolean enableMemory;
-
-        final boolean enableClassLoad;
-
         final long atraceBufferSize;
+        final long methodIdBufferSize;
 
         final String blockHookLibs;
 
-        public Configuration(boolean enableIO,
+        public Configuration(List<String> categories,
                              boolean mainThreadOnly,
-                             boolean enableMemory,
-                             boolean enableClassLoad,
                              long atraceBufferSize,
+                             long methodIdBufferSize,
                              String blockHookLibs) {
-            this.enableIO = enableIO;
+            this.categories = categories;
             this.mainThreadOnly = mainThreadOnly;
-            this.enableMemory = enableMemory;
-            this.enableClassLoad = enableClassLoad;
             this.atraceBufferSize = atraceBufferSize;
+            this.methodIdBufferSize = methodIdBufferSize;
             this.blockHookLibs = blockHookLibs;
         }
     }

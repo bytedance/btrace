@@ -469,7 +469,6 @@ template <> FMT_CONSTEXPR const char* get_units<std::ratio<3600>>() {
 
 enum class numeric_system {
   standard,
-  // Alternative numeric system, e.g. 十二 instead of 12 in ja_JP locale.
   alternative
 };
 

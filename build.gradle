@@ -1,10 +1,23 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
+    File secretPropsFile = project.rootProject.file('local.properties')
+    if (secretPropsFile.exists()) {
+        Properties p = new Properties()
+        p.load(new FileInputStream(secretPropsFile))
+        p.each { name, value ->
+            ext[name] = value
+        }
+    } else {
+        println("unable to find local.properties!")
+    }
     repositories {
         mavenLocal()
         google()
         mavenCentral()
         jcenter()
+        maven {
+            url "https://artifact.bytedance.com/repository/byteX/"
+        }
     }
     dependencies {
         classpath "com.android.tools.build:gradle:$agp_version"
@@ -22,6 +35,9 @@ allprojects {
         google()
         mavenCentral()
         jcenter()
+        maven {
+            url "https://artifact.bytedance.com/repository/byteX/"
+        }
     }
 }
 
