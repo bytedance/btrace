@@ -24,7 +24,7 @@
 #ifndef NDBUG
 
 #ifndef LOG_TAG
-#define LOG_TAG  "fastlog"
+#define LOG_TAG  "Rhea.fastlog"
 #endif
 
 #define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)

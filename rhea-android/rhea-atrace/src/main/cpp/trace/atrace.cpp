@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -94,10 +95,10 @@ int32_t ATrace::StartTrace() {
 
   atrace_started_ = true;
 
-  ATRACE_BEGIN(("monotonic_time: " + std::to_string(systemTime(SYSTEM_TIME_MONOTONIC) / 1000000000.0)).c_str());
+  // ATRACE_BEGIN(("monotonic_time: " + std::to_string(systemTime(SYSTEM_TIME_MONOTONIC) / 1000000000.0)).c_str());
 
   int64_t cost_us = elapsedRealtimeMicros() - start;
-  ALOGD("start trace cost us: %lld", cost_us);
+  ALOGD("start trace cost us: %" PRId64, cost_us);
   return OK;
 }
 
@@ -119,14 +120,14 @@ int32_t ATrace::StopTrace() {
 //    return UNHOOK_FAILED;
 //  }
 
-  ALOGD("log atrace cost us: %llu", log_trace_cost_us_);
+  ALOGD("log atrace cost us: %" PRIu64, log_trace_cost_us_);
   log_trace_cost_us_ = 0;
 
   PostFinishTrace();
   atrace_started_ = false;
 
   int64_t cost_us = elapsedRealtimeMicros() - start;
-  ALOGD("stop trace cost us: %lld", cost_us);
+  ALOGD("stop trace cost us: %" PRId64, cost_us);
 
   return OK;
 }
@@ -135,7 +136,7 @@ bool ATrace::IsATrace(int fd, size_t count) {
   return (atrace_marker_fd_ != nullptr && fd == *atrace_marker_fd_ && count > 0);
 }
 
-void ATrace::LogTrace(const void *buf, size_t count) {
+void ATrace::LogTrace(const void *buf, size_t count) const {
   if (!atrace_started_) {
     return;
   }
@@ -175,7 +176,7 @@ void ATrace::LogTrace(const void *buf, size_t count) {
     strcpy(tmp_buf + len, "\n");
     len += 1;
   } else {
-    ALOGE("atrace message is too long, total count is %ld", len + count + 1);
+    ALOGE("atrace message is too long, total count is %zu", len + count + 1);
     return;
   }
   auto& logger = Logger::get();

@@ -1,0 +1,7 @@
+[package]
+# which packages you want to trace.
+-allowpackage rhea/sample/android
+-allowpackage androidx/
+
+# which packages you don't want to trace.
+-blockpackage rhea/sample/android/test

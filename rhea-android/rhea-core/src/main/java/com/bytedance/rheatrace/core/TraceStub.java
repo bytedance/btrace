@@ -16,9 +16,9 @@
 
 package com.bytedance.rheatrace.core;
 
-import java.util.Arrays;
-
 import androidx.annotation.Keep;
+
+import java.util.Arrays;
 
 @Keep
 @SuppressWarnings("unused")
@@ -30,7 +30,7 @@ public class TraceStub {
      * @param methodId method id.
      */
     public static void i(String methodId) {
-        RheaTrace.t(methodId);
+        RheaTrace.i(methodId);
     }
 
     /**
@@ -39,7 +39,7 @@ public class TraceStub {
      * @param methodId method id.
      */
     public static void o(String methodId) {
-        RheaTrace.t(methodId);
+        RheaTrace.o(methodId);
     }
 
     /**
@@ -49,7 +49,7 @@ public class TraceStub {
      * @param object   array of params values
      */
     public static void i(String methodId, Object... object) {
-        RheaTrace.t(methodId + Arrays.toString(object));
+        RheaTrace.i(methodId + Arrays.toString(object));
     }
 
     /**
@@ -59,6 +59,14 @@ public class TraceStub {
      * @param object   array of params values
      */
     public static void o(String methodId, Object... object) {
-        RheaTrace.t(methodId + Arrays.toString(object));
+        RheaTrace.o(methodId + Arrays.toString(object));
+    }
+
+    public static long i(int methodId) {
+        return RheaTrace.i(methodId);
+    }
+
+    public static void o(int methodId, long slot) {
+        RheaTrace.o(methodId, slot);
     }
 }

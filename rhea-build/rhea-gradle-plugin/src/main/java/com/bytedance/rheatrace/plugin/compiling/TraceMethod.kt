@@ -34,7 +34,9 @@
 
 package com.bytedance.rheatrace.plugin.compiling
 
-import com.bytedance.rheatrace.plugin.retrace.MappingCollector
+import com.bytedance.rheatrace.common.retrace.MappingCollector
+import com.bytedance.rheatrace.common.utils.JavaToClassFormat.getMethodDescParams
+import com.bytedance.rheatrace.common.utils.JavaToClassFormat.getMethodDescReturn
 import org.apache.http.util.TextUtils
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.Type
@@ -56,27 +58,39 @@ open class TraceMethod {
     var methodName: String = ""
 
     var desc: String? = null
-        set(value) {
-            field = value?.apply {
-                value.replace("/", ".")
-            }
-        }
+
+    private var originClassName = ""
 
     fun getFullMethodName(): String {
         return if (desc == null || isNativeMethod) {
-            "$className.$methodName"
+            "$className.$methodName()"
         } else {
-            "$className.$methodName.$desc"
+            "$className.$methodName$desc"
         }
     }
 
     fun getOriginMethodName(processor: MappingCollector?): String {
         if (null == processor) {
-            return ""
+            return getFullMethodName()
         }
-        val originClassName = processor.originalClassName(className, className)
+        originClassName = processor.originalClassName(className, className)
         val methodInfo = processor.originalMethodInfo(className, methodName, desc!!)
-        return "$originClassName.${methodInfo.originalName}${methodInfo.desc.replace("/", ".")}"
+        var originMethodName =
+            "$originClassName.${methodInfo.originalName}(${methodInfo.originalArguments})${methodInfo.originalType}"
+        val regex = """\$[A-Za-z0-9]{8}\(""".toRegex()
+        originMethodName = originMethodName.replace(regex, "(")
+        return originMethodName
+    }
+
+    fun getOriginClassName(processor: MappingCollector?): String {
+        if (null == processor) {
+            return className
+        }
+        if (originClassName.isNotEmpty()) {
+            return originClassName
+        }
+        originClassName = processor.originalClassName(className, className)
+        return originClassName
     }
 
     /**
@@ -90,7 +104,7 @@ open class TraceMethod {
         }
         val methodInfo = processor.originalMethodInfo(className, methodName, desc!!)
         methodName = methodInfo.originalName
-        desc = methodInfo.desc
+        desc = getMethodDescParams(methodInfo.originalArguments) + getMethodDescReturn(methodInfo.originalType)
         className = processor.originalClassName(className, className)
     }
 
@@ -140,10 +154,6 @@ open class TraceMethod {
         } else {
             false
         }
-    }
-
-    override fun hashCode(): Int {
-        return super.hashCode()
     }
 
     companion object {

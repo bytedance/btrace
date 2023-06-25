@@ -93,4 +93,3 @@ afterEvaluate { it ->
 }
 
 tasks.getByName("uploadArchives").dependsOn tasks.getByName("checkstyle")
-

@@ -72,3 +72,8 @@ int64_t elapsedRealtimeMicros()
   int64_t when = systemTime(SYSTEM_TIME_BOOTTIME);
   return (int64_t) nanoseconds_to_microseconds(when);
 }
+
+int64_t elapsedRealtimeNanos()
+{
+  return systemTime(SYSTEM_TIME_MONOTONIC);
+}

@@ -99,7 +99,7 @@ static void StartWorkerThreadIfNecessary(size_t ring_buffer_size) {
 }
 
 bool PostCreateTrace(size_t ring_buffer_size, int64_t trace_id) {
-  ALOGE("buffer size %ld", ring_buffer_size);
+  ALOGE("buffer size %zu", ring_buffer_size);
   StartWorkerThreadIfNecessary(ring_buffer_size);
   return WriteTraceStart(sTraceWriter.get(), trace_id);
 }

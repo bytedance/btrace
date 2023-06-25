@@ -22,29 +22,40 @@ open class TraceCompilation(
 
     var traceFilterFilePath: String = "",
 
-    var applyMethodMappingFilePath: String = ""
-) {
-    override fun toString(): String {
-        return "TraceCompilation(traceWithMethodID=$traceWithMethodID, traceFilterFilePath='$traceFilterFilePath', applyMethodMappingFilePath='$applyMethodMappingFilePath')"
-    }
+    var applyMethodMappingFilePath: String = "",
 
+    var needPackageWithMethodMap: Boolean = true,
+
+    var radicalFilterMode: Boolean = false
+
+) {
     override fun equals(other: Any?): Boolean {
-        if (other == null) {
-            return false
-        }
-        if (other !is TraceCompilation) {
-            return false
-        }
-        return other.traceWithMethodID == traceWithMethodID
-                && other.traceFilterFilePath == traceFilterFilePath
-                && other.applyMethodMappingFilePath == applyMethodMappingFilePath
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as TraceCompilation
+
+        if (traceWithMethodID != other.traceWithMethodID) return false
+        if (traceFilterFilePath != other.traceFilterFilePath) return false
+        if (applyMethodMappingFilePath != other.applyMethodMappingFilePath) return false
+        if (needPackageWithMethodMap != other.needPackageWithMethodMap) return false
+        if (radicalFilterMode != other.radicalFilterMode) return false
+
+        return true
     }
 
     override fun hashCode(): Int {
         var result = traceWithMethodID.hashCode()
         result = 31 * result + traceFilterFilePath.hashCode()
         result = 31 * result + applyMethodMappingFilePath.hashCode()
+        result = 31 * result + needPackageWithMethodMap.hashCode()
+        result = 31 * result + radicalFilterMode.hashCode()
         return result
     }
+
+    override fun toString(): String {
+        return "TraceCompilation(traceWithMethodID=$traceWithMethodID, traceFilterFilePath='$traceFilterFilePath', applyMethodMappingFilePath='$applyMethodMappingFilePath', needPackageWithMethodMap=$needPackageWithMethodMap, radicalFilterMode=$radicalFilterMode)"
+    }
+
 
 }

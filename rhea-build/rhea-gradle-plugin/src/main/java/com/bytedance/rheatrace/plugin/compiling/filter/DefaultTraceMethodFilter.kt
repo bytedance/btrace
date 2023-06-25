@@ -17,16 +17,16 @@
 package com.bytedance.rheatrace.plugin.compiling.filter
 
 
-import com.bytedance.rheatrace.plugin.internal.common.RheaConstants
+import com.bytedance.rheatrace.common.retrace.MappingCollector
 import com.bytedance.rheatrace.plugin.compiling.TraceMethod
-import com.bytedance.rheatrace.plugin.retrace.MappingCollector
+import com.bytedance.rheatrace.plugin.internal.RheaConstants
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.MethodNode
 
 abstract class DefaultTraceMethodFilter(mappingCollector: MappingCollector) :
     TraceMethodFilter(mappingCollector) {
 
-    override fun onMethodNeedFilter(methodNode: MethodNode, traceMethod: TraceMethod): Boolean {
+    override fun onMethodNeedFilter(methodNode: MethodNode, traceMethod: TraceMethod, originFullMethod: String): Boolean {
         return isGetOrSetMethod(
             methodNode
         ) || isSingleMethod(
@@ -36,9 +36,9 @@ abstract class DefaultTraceMethodFilter(mappingCollector: MappingCollector) :
         )
     }
 
-    override fun onClassNeedFilter(className: String): Boolean {
+    override fun onClassNeedFilter(originFullMethod: String): Boolean {
         for (unTraceCls in RheaConstants.UN_TRACE_CLASS) {
-            if (className.contains(unTraceCls)) {
+            if (originFullMethod.contains(unTraceCls)) {
                 return true
             }
         }

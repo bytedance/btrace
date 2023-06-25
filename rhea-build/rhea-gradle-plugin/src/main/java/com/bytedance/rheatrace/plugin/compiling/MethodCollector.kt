@@ -34,35 +34,36 @@
 
 package com.bytedance.rheatrace.plugin.compiling
 
+import com.bytedance.rheatrace.common.retrace.MappingCollector
+import com.bytedance.rheatrace.common.utils.RheaLog
+import com.bytedance.rheatrace.plugin.RheaContext
 import com.bytedance.rheatrace.plugin.compiling.filter.TraceMethodFilter
-import com.bytedance.rheatrace.plugin.internal.common.RheaConstants
-import com.bytedance.rheatrace.plugin.internal.common.RheaLog
-import com.bytedance.rheatrace.plugin.retrace.MappingCollector
-import org.objectweb.asm.*
-import org.objectweb.asm.tree.MethodNode
+import com.bytedance.rheatrace.plugin.internal.RheaConstants
+import com.bytedance.rheatrace.plugin.internal.RheaFileUtils
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.tree.ClassNode
 import java.io.*
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Future
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.zip.ZipFile
 
 class MethodCollector(
     private val methodId: AtomicInteger,
-    private val executor: ExecutorService,
-    private val methodMapFilePath: String,
-    private val ignoreMethodMapFilePath: String,
     private val traceMethodFilter: TraceMethodFilter,
-    private val collectedMethodMap: ConcurrentHashMap<String, TraceMethod>
+    private val collectedMethodMap: ConcurrentHashMap<String, TraceMethod>,
+    private val rheaContext: RheaContext
 ) {
+    private val executor: ExecutorService = Executors.newFixedThreadPool(16)
 
     companion object {
         private const val TAG = "MethodCollector"
     }
 
+    private val classNodeList = arrayListOf<ClassNode>()
+
     var collectedClassExtendMap = ConcurrentHashMap<String, String>()
+
+    var collectedClassImplementMap = ConcurrentHashMap<String, List<String>>()
 
     var collectedIgnoreMethodMap = ConcurrentHashMap<String, TraceMethod?>()
 
@@ -71,26 +72,21 @@ class MethodCollector(
     var incrementCount = AtomicInteger()
 
     @Throws(ExecutionException::class, InterruptedException::class)
-    fun collect(srcFolderList: Set<File>, dependencyJarList: Set<File?>) {
+    fun saveCollectMethod() {
+        RheaLog.i(TAG, "[saveCollectMethod] start")
+        RheaLog.i(TAG, "[saveCollectMethod] classNodeList :${classNodeList.size}")
         val futures: MutableList<Future<*>> = LinkedList()
-        for (srcFile in srcFolderList) {
-            val classFileList = ArrayList<File>()
-            if (srcFile.isDirectory) {
-                listClassFiles(classFileList, srcFile)
-            } else {
-                classFileList.add(srcFile)
-            }
-            for (classFile in classFileList) {
-                futures.add(executor.submit(CollectSrcTask(classFile)))
+        classNodeList.forEach { classNode: ClassNode ->
+            try {
+                futures.add(executor.submit(CollectMethodTask(classNode)))
+            } catch (e: Throwable) {
+                RheaLog.e(TAG, "[saveCollectMethod] ${e.message}")
             }
         }
-        for (jarFile in dependencyJarList) {
-            futures.add(executor.submit(CollectJarTask(jarFile!!)))
-        }
+
         for (future in futures) {
             future.get()
         }
-        futures.clear()
         futures.add(executor.submit { saveIgnoreCollectedMethod(traceMethodFilter.mappingCollector) })
         futures.add(executor.submit { saveCollectedMethod(traceMethodFilter.mappingCollector) })
         for (future in futures) {
@@ -99,69 +95,34 @@ class MethodCollector(
         futures.clear()
     }
 
-    internal inner class CollectSrcTask(var classFile: File) : Runnable {
+    internal inner class CollectMethodTask(var classNode: ClassNode) : Runnable {
         override fun run() {
-            var inputStream: InputStream? = null
             try {
-                inputStream = FileInputStream(classFile)
-                val classReader = ClassReader(inputStream)
-                val classWriter = ClassWriter(ClassWriter.COMPUTE_MAXS)
-                val visitor: ClassVisitor = TraceClassAdapter(Opcodes.ASM5, classWriter)
-                classReader.accept(visitor, 0)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                try {
-                    inputStream!!.close()
-                } catch (ignored: Exception) {
-                    //do nothing
-                }
-            }
-        }
-
-    }
-
-    internal inner class CollectJarTask(var fromJar: File) : Runnable {
-        override fun run() {
-            var zipFile: ZipFile? = null
-            try {
-                zipFile = ZipFile(fromJar)
-                val enumeration = zipFile.entries()
-                while (enumeration.hasMoreElements()) {
-                    try {
-                        val zipEntry = enumeration.nextElement()
-                        val zipEntryName = zipEntry.name
-                        if (zipEntryName.endsWith(".class")) {
-                            val inputStream = zipFile.getInputStream(zipEntry)
-                            val classReader = ClassReader(inputStream)
-                            val classWriter = ClassWriter(ClassWriter.COMPUTE_MAXS)
-                            val visitor: ClassVisitor = TraceClassAdapter(Opcodes.ASM5, classWriter)
-                            classReader.accept(visitor, 0)
+                classNode.methods.forEach {
+                    val traceMethod: TraceMethod = TraceMethod.create(0, it.access, classNode.name, it.name, it.desc)
+                    val needFilter: Boolean = traceMethodFilter.needFilter(it, traceMethod, classNode)
+                    if (needFilter) {
+                        if (!collectedIgnoreMethodMap.containsKey(traceMethod.getFullMethodName())) {
+                            ignoreCount.incrementAndGet()
+                            collectedIgnoreMethodMap[traceMethod.getFullMethodName()] = traceMethod
                         }
-                    } catch (error: Exception) {
-                        RheaLog.e(
-                            TAG,
-                            "Failed to read class:%s, e:%s",
-                            enumeration.nextElement().name,
-                            error
-                        )
+                    } else {
+                        if (!collectedMethodMap.containsKey(traceMethod.getFullMethodName())) {
+                            traceMethod.id = methodId.incrementAndGet()
+                            incrementCount.incrementAndGet()
+                            collectedMethodMap[traceMethod.getFullMethodName()] = traceMethod
+                        }
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                try {
-                    zipFile!!.close()
-                } catch (e: Exception) {
-                    RheaLog.e(TAG, "close stream err! fromJar:%s", fromJar.absolutePath)
-                }
+                RheaLog.e(TAG, "[saveCollectMethod] error:" + e.message)
             }
         }
 
     }
 
     private fun saveIgnoreCollectedMethod(mappingCollector: MappingCollector) {
-        val methodMapFile = File(ignoreMethodMapFilePath)
+        val methodMapFile = File(RheaFileUtils.getIgnoreMethodMapFilePath(rheaContext.project, rheaContext.transformContext.variantName))
         if (!methodMapFile.parentFile.exists()) {
             methodMapFile.parentFile.mkdirs()
         }
@@ -179,7 +140,7 @@ class MethodCollector(
 
         var pw: PrintWriter? = null
         try {
-            val fileOutputStream = FileOutputStream(methodMapFile, false)
+            val fileOutputStream = FileOutputStream(methodMapFile, rheaContext.transformContext.isIncremental)
             val w: Writer = OutputStreamWriter(fileOutputStream, "UTF-8")
             pw = PrintWriter(w)
             pw.println("ignore methods:")
@@ -202,7 +163,7 @@ class MethodCollector(
     }
 
     private fun saveCollectedMethod(mappingCollector: MappingCollector) {
-        val methodMapFile = File(methodMapFilePath)
+        val methodMapFile = File(RheaFileUtils.getMethodMapFilePath(rheaContext.project, rheaContext.transformContext.variantName))
         if (!methodMapFile.parentFile.exists()) {
             methodMapFile.parentFile.mkdirs()
         }
@@ -227,9 +188,10 @@ class MethodCollector(
         Collections.sort(methodList, Comparator<TraceMethod?> { o1, o2 -> o1!!.id - o2!!.id })
         var pw: PrintWriter? = null
         try {
-            val fileOutputStream = FileOutputStream(methodMapFile, false)
+            val fileOutputStream = FileOutputStream(methodMapFile, rheaContext.transformContext.isIncremental)
             val w: Writer = OutputStreamWriter(fileOutputStream, "UTF-8")
             pw = PrintWriter(w)
+            pw.println("#" + UUID.randomUUID().toString())
             for (traceMethod in methodList) {
                 traceMethod?.apply {
                     traceMethod.revert(mappingCollector)
@@ -248,84 +210,22 @@ class MethodCollector(
         }
     }
 
-    private inner class TraceClassAdapter(i: Int, classVisitor: ClassVisitor) :
-        ClassVisitor(i, classVisitor) {
-
-        private var className: String? = null
-
-        private var isABSClass = false
-
-        override fun visit(
-            version: Int,
-            access: Int,
-            name: String,
-            signature: String?,
-            superName: String,
-            interfaces: Array<String>?
-        ) {
-            super.visit(version, access, name, signature, superName, interfaces)
-            className = name
-            if (access and Opcodes.ACC_ABSTRACT > 0 || access and Opcodes.ACC_INTERFACE > 0) {
-                isABSClass = true
-            }
-            className?.apply {
-                collectedClassExtendMap[this] = superName
-            }
+    fun collectMethod(classNode: ClassNode) {
+        if (classNode.superName != null) {
+            collectedClassExtendMap[classNode.name] = classNode.superName
         }
-
-        override fun visitMethod(
-            access: Int, name: String, desc: String,
-            signature: String?, exceptions: Array<String>?
-        ): MethodVisitor {
-            return if (isABSClass) {
-                super.visitMethod(access, name, desc, signature, exceptions)
-            } else {
-                CollectMethodNode(className!!, access, name, desc, signature, exceptions)
-            }
+        if (classNode.interfaces != null) {
+            collectedClassImplementMap[classNode.name] = classNode.interfaces
+        }
+        synchronized(this) {
+            classNodeList.add(classNode)
         }
     }
 
-    private inner class CollectMethodNode(
-        private val className: String,
-        access: Int, name: String?, desc: String?,
-        signature: String?, exceptions: Array<String>?
-    ) : MethodNode(Opcodes.ASM5, access, name, desc, signature, exceptions) {
-
-        override fun visitEnd() {
-            super.visitEnd()
-            val traceMethod: TraceMethod = TraceMethod.create(0, access, className, name, desc)
-            val needFilter: Boolean =
-                traceMethodFilter.onClassNeedFilter(className) || traceMethodFilter.onMethodNeedFilter(this, traceMethod)
-            if (needFilter) {
-                if (!collectedIgnoreMethodMap.containsKey(traceMethod.getFullMethodName())) {
-                    ignoreCount.incrementAndGet()
-                    collectedIgnoreMethodMap[traceMethod.getFullMethodName()] = traceMethod
-                }
-            } else {
-                if (!collectedMethodMap.containsKey(traceMethod.getFullMethodName())) {
-                    traceMethod.id = methodId.incrementAndGet()
-                    incrementCount.incrementAndGet()
-                    collectedMethodMap[traceMethod.getFullMethodName()] = traceMethod
-                }
-            }
-        }
-    }
-
-    private fun listClassFiles(classFiles: ArrayList<File>, folder: File) {
-        val files = folder.listFiles()
-        if (null == files) {
-            RheaLog.e(TAG, "[listClassFiles] files is null! %s", folder.absolutePath)
-            return
-        }
-        for (file in files) {
-            if (file == null) {
-                continue
-            }
-            if (file.isDirectory) {
-                listClassFiles(classFiles, file)
-            } else if (file.name.endsWith(".class")) {
-                classFiles.add(file)
-            }
-        }
+    fun release() {
+        classNodeList.clear()
+        collectedClassExtendMap.clear()
+        collectedClassImplementMap.clear()
+        collectedIgnoreMethodMap.clear()
     }
 }

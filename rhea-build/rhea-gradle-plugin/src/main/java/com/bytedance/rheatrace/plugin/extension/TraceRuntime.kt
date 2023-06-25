@@ -16,6 +16,7 @@
 
 package com.bytedance.rheatrace.plugin.extension
 
+@Deprecated("runtime config for Gradle is not used anymore")
 open class TraceRuntime(
 
     var mainThreadOnly: Boolean = false,

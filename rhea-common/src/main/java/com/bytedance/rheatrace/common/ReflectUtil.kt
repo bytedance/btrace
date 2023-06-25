@@ -38,10 +38,10 @@ package com.bytedance.rheatrace.common
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
-object ReflectUtil {
+public object ReflectUtil {
 
     @Throws(NoSuchFieldException::class, ClassNotFoundException::class)
-    fun getDeclaredFieldRecursive(clazz: Any, fieldName: String): Field {
+    public fun getDeclaredFieldRecursive(clazz: Any, fieldName: String): Field {
         val realClazz: Class<*>? = when (clazz) {
             is String -> {
                 Class.forName(clazz)
@@ -69,7 +69,7 @@ object ReflectUtil {
     }
 
     @Throws(NoSuchMethodException::class, ClassNotFoundException::class)
-    fun getDeclaredMethodRecursive(
+    public fun getDeclaredMethodRecursive(
         clazz: Any,
         methodName: String,
         vararg argTypes: Class<*>?

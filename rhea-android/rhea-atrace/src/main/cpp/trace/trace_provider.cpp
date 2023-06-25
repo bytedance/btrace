@@ -35,28 +35,57 @@ TraceProvider::TraceProvider() = default;
 
 TraceProvider::~TraceProvider() = default;
 
-void TraceProvider::SetConfig(ConfigKey key, int64_t val) {
-    atrace_config_[key] = val;
+void TraceProvider::SetCategories(std::vector<std::string> categories) {
+    this->categories_ = std::move(categories);
+}
+
+static bool IsCategoryEnable(const char* name) {
+    char value[PROP_VALUE_MAX];
+    __system_property_get(name, value);
+    if(value[0] == '1') {
+        return true;
+    }
+    char all[PROP_VALUE_MAX];
+    __system_property_get("debug.rhea.category.all", all);
+    return all[0] == '1';
 }
 
 bool TraceProvider::IsEnableIO() const {
-    return atrace_config_[kIO] == 1;
+    return IsCategoryEnable("debug.rhea.category.io");
 }
 
-bool TraceProvider::isMainThreadOnly() const {
-    return atrace_config_[KMainThreadOnly] == 2;
-}
-
-bool TraceProvider::isEnableMemory()  const {
-    return atrace_config_[kMemory] == 4;
+bool TraceProvider::isEnableMemory() const {
+    return IsCategoryEnable("debug.rhea.category.memory");
 }
 
 bool TraceProvider::isEnableClassLoad() const {
-    return atrace_config_[kClassLoad] == 8;
+    return IsCategoryEnable("debug.rhea.category.class");
+}
+
+bool TraceProvider::isEnableThread() const {
+    return IsCategoryEnable("debug.rhea.category.thread");
+}
+
+bool TraceProvider::isEnableBinder() const {
+    return IsCategoryEnable("debug.rhea.category.binder");
+}
+
+bool TraceProvider::isEnableDetailRender() const {
+    return IsCategoryEnable("debug.rhea.category.render");
+}
+
+bool TraceProvider::isMainThreadOnly() const {
+    char value[PROP_VALUE_MAX];
+    __system_property_get("debug.rhea.mainThreadOnly", value);
+    return value[0] == '1';
 }
 
 void TraceProvider::SetMainThreadId(pid_t tid) {
     main_thread_id_ = tid;
+}
+
+void TraceProvider::SetMainThreadOnly(bool mainOnly) {
+    mainThreadOnly_ = mainOnly;
 }
 
 pid_t TraceProvider::GetMainThreadId() const {

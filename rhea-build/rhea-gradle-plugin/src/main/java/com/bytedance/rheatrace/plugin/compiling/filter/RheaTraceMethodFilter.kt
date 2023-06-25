@@ -16,15 +16,15 @@
 
 package com.bytedance.rheatrace.plugin.compiling.filter
 
-import com.bytedance.rheatrace.plugin.internal.common.FileUtil
-import com.bytedance.rheatrace.plugin.internal.common.RheaConstants
+import com.bytedance.rheatrace.common.retrace.MappingCollector
+import com.bytedance.rheatrace.common.utils.FileUtil
+import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.compiling.TraceMethod
-import com.bytedance.rheatrace.plugin.internal.common.RheaLog
-import com.bytedance.rheatrace.plugin.retrace.MappingCollector
+import com.bytedance.rheatrace.plugin.internal.RheaConstants.DEFAULT_BLOCK_PACKAGES
 import org.gradle.api.GradleException
+import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.MethodNode
 import java.io.File
-import kotlin.collections.HashSet
 
 class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: MappingCollector) :
     DefaultTraceMethodFilter(mappingCollector) {
@@ -33,78 +33,131 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
     }
 
     /**
-     * @see RheaConstants.DEFAULT_BLOCK_PACKAGES
+     * Classes under the default package name are not piled
+     * @see DEFAULT_BLOCK_PACKAGES
      */
     private val defaultBlockPackages = HashSet<String>()
 
+    /**
+     * Classes under the package name are not piled
+     */
     private val blockPackages = HashSet<String>()
 
     /**
-     * Set the package name of the pile file. If empty, the default is full pile
+     * Set the package name of the pile file. If empty, the default is full piled
      */
     private val allowPackages = HashSet<String>()
 
+    /**
+     * Method will not be piled
+     */
     private val blockMethodSet = HashSet<String>()
 
-    private val allowClassMethodsWithParamMap = HashMap<String, List<Int>>()
+    /**
+     * Allow the method to pile the parameter information
+     */
+    private val allowMethodsWithParamMap = HashMap<String, List<Int>>()
+
+    /**
+     * Classes that need to be traced
+     */
+    private val traceClassSet = HashSet<String>()
+
+    /**
+     * Methods that need to be traced
+     */
+    private val traceMethodSet = HashSet<FilterTraceMethodData>()
+
+    /**
+     * Whether to enable Precise Instrumentation
+     */
+    var enablePreciseInstrumentation = false
 
     init {
+        updateConfig()
+    }
+
+    fun updateConfig() {
         parseTraceFilterFile(mappingCollector)
         checkPath()
     }
 
     private fun parseTraceFilterFile(processor: MappingCollector) {
-        var methodKeepStr = RheaConstants.DEFAULT_BLOCK_PACKAGES
+        var methodKeepStr = DEFAULT_BLOCK_PACKAGES
         if (traceFilterFilePath != null && File(traceFilterFilePath!!).exists()) {
-            methodKeepStr += FileUtil.readFileAsString(traceFilterFilePath);
+            methodKeepStr += FileUtil.readFileAsString(traceFilterFilePath)
         }
         val methodKeepArray =
             methodKeepStr.trim { it <= ' ' }.replace("/", ".").split("\n").toTypedArray()
-
-        var iterator = methodKeepArray.iterator()
+        val iterator = methodKeepArray.iterator()
         loop@ while (iterator.hasNext()) {
-            var item = iterator.next()
+            val item = iterator.next()
             when {
                 item.isEmpty() || item.startsWith("#") || item.startsWith("[") -> {
                     continue@loop
                 }
                 item.startsWith("-defaultblockpackage ") -> {
                     val packageName = item.replace("-defaultblockpackage ", "")
-                    defaultBlockPackages.add(processor.proguardPackageName(packageName, packageName))
+                    defaultBlockPackages.add(packageName)
                 }
                 item.startsWith("-blockpackage ") -> {
                     val blockPackageString = item.replace("-blockpackage ", "")
-                    var packageName = processor.proguardPackageName(blockPackageString, "")
-                    if (packageName.isEmpty()) {
-                        packageName = processor.proguardClassName(blockPackageString, blockPackageString)
-                    }
-                    blockPackages.add(packageName)
+                    blockPackages.add(blockPackageString)
                 }
-                item.startsWith("-allowpackage") -> {
+                item.startsWith("-allowpackage ") -> {
                     val packageName = item.replace("-allowpackage ", "")
-                    allowPackages.add(processor.proguardPackageName(packageName, packageName))
+                    allowPackages.add(packageName)
                 }
-                item.startsWith("-allowclassmethodswithparametervalues") -> {
+                item.startsWith("-blockclassmethods ") -> {
+                    val className = item.replace("-blockclassmethods ", "").replace("{", "").trim()
+                    while (iterator.hasNext()) {
+                        val methodItem = iterator.next().split(";").first().replace(" ", "")
+                        if (methodItem == "}") {
+                            continue@loop
+                        }
+                        blockMethodSet.add("$className.$methodItem")
+                    }
+                }
+                item.startsWith("-allowclassmethodswithparametervalues ") -> {
                     val className = item.replace("-allowclassmethodswithparametervalues ", "").replace("{", "").trim()
                     while (iterator.hasNext()) {
-                        val methodItem = iterator.next().split(";").first().trim()
+                        val methodItem = iterator.next().split(";").first().replace(" ", "")
                         if (methodItem == "}") {
                             continue@loop
                         }
                         formatClassMethodsWithParam(className, methodItem)
                     }
-                    throw GradleException("Rhea Plugin: allowclassmethodswithparametervalues wrong setting.")
                 }
-                item.startsWith("-blockclassmethods") -> {
-                    val className = item.replace("-blockclassmethods ", "").replace("{", "").trim()
+                item.startsWith("-traceclass ") -> {
+                    val traceClass = item.replace("-traceclass ", "")
+                    traceClassSet.add(traceClass)
+                }
+                item.startsWith("-traceclassmethods ") -> {
+                    val classInfoItems = item.replace("-traceclassmethods ", "").replace("{", "").trim().split(" ")
+                    var className = ""
+                    var superClassName = ""
+                    if (classInfoItems.size == 3) {
+                        if (classInfoItems[1] != "implements") {
+                            throw Exception("traceclassmethods error：implements cannot parse correctly")
+                        }
+                        superClassName = classInfoItems[2]
+                    } else {
+                        className = classInfoItems[0]
+                    }
                     while (iterator.hasNext()) {
-                        val methodItem = iterator.next().split(";").first().trim()
-                        if (methodItem == "}") {
+                        val methodInfoItems = iterator.next().trim().split(" ")
+                        if (methodInfoItems[0] == "}") {
                             continue@loop
                         }
-                        formatBlockMethod(className, methodItem)
+                        val traceMethod = FilterTraceMethodData()
+                        traceMethod.method = methodInfoItems[0]
+                        traceMethod.className = className
+                        traceMethod.superClassName = superClassName
+                        traceMethodSet.add(traceMethod)
                     }
-                    throw GradleException("Rhea Plugin: blockclassmethods wrong setting.")
+                }
+                item.startsWith("-enablepreciseinstrumentation") -> {
+                    enablePreciseInstrumentation = true
                 }
             }
         }
@@ -113,67 +166,14 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
 
     private fun formatClassMethodsWithParam(className: String, methodName: String) {
         val params = methodName.subSequence(methodName.indexOf("(") + 1, methodName.indexOf(")")).split(",")
-        val method = StringBuilder()
-        method.append(className).append(".").append(methodName.subSequence(0, methodName.indexOf("(") + 1))
         val paramIndexList = ArrayList<Int>()
         for (i in params.indices) {
-            var param = params[i].replace(" ", "")
-            if (param.startsWith("*")) {
+            if (params[i].startsWith("*")) {
                 paramIndexList.add(i)
-                param = param.replace("*", "")
             }
-            if (param.endsWith("[]")) {
-                method.append("[")
-                param = param.replace("[]", "")
-            }
-            method.append(
-                when (param) {
-                    "boolean" -> "Z"
-                    "char" -> "C"
-                    "byte" -> "B"
-                    "short" -> "S"
-                    "int" -> "I"
-                    "float" -> "F"
-                    "long" -> "J"
-                    "double" -> "D"
-                    else -> {
-                        "L$param;"
-                    }
-                }
-            )
         }
-        method.append(")")
-        allowClassMethodsWithParamMap[method.toString()] = paramIndexList
-    }
-
-    private fun formatBlockMethod(className: String, methodName: String) {
-        val params = methodName.subSequence(methodName.indexOf("(") + 1, methodName.indexOf(")")).split(",")
-        val method = StringBuilder()
-        method.append(className).append(".").append(methodName.subSequence(0, methodName.indexOf("(") + 1))
-        for (i in params.indices) {
-            var param = params[i].replace(" ", "")
-            if (param.endsWith("[]")) {
-                method.append("[")
-                param = param.replace("[]", "")
-            }
-            method.append(
-                when (param) {
-                    "boolean" -> "Z"
-                    "char" -> "C"
-                    "byte" -> "B"
-                    "short" -> "S"
-                    "int" -> "I"
-                    "float" -> "F"
-                    "long" -> "J"
-                    "double" -> "D"
-                    else -> {
-                        "L$param;"
-                    }
-                }
-            )
-        }
-        method.append(")")
-        blockMethodSet.add(method.toString())
+        val fullMethodName = "$className.$methodName".replace("*", "")
+        allowMethodsWithParamMap[fullMethodName] = paramIndexList
     }
 
     /**
@@ -200,29 +200,33 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
         }
     }
 
-    override fun onClassNeedFilter(className: String): Boolean {
-        val needFilter = super.onClassNeedFilter(className)
-        if (!needFilter) {
-            if (!isAllowPackage(className)) {
-                return true
-            }
-            return isBlockClass(className)
+    override fun needFilter(methodNode: MethodNode, traceMethod: TraceMethod, classNode: ClassNode): Boolean {
+        val originFullMethod: String = traceMethod.getOriginMethodName(mappingCollector)
+        if (!isAllowPackage(originFullMethod)) {
+            return true
         }
-        return needFilter
+        if (isBlockClass(originFullMethod)) {
+            return true
+        }
+        if (isTraceClass(originFullMethod)) {
+            return false
+        }
+        if (isTraceMethod(originFullMethod, classNode)) {
+            return false
+        }
+        if (enablePreciseInstrumentation) {
+            return true
+        }
+        return onClassNeedFilter(originFullMethod) || onMethodNeedFilter(methodNode, traceMethod, originFullMethod)
     }
 
-    /**
-     * Determine whether it is in the path that allows piling
-     */
-    private fun isAllowPackage(clsName: String): Boolean {
+    private fun isAllowPackage(originFullMethod: String): Boolean {
         if (allowPackages.isEmpty()) {
             return true
         }
-        var className = clsName.replace("/", ".")
-        className = mappingCollector.proguardClassName(className, className)
         var needTrace = false
         for (packageName in allowPackages) {
-            if (className.startsWith(packageName)) {
+            if (originFullMethod.startsWith(packageName)) {
                 needTrace = true
                 break
             }
@@ -230,12 +234,11 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
         return needTrace
     }
 
-    private fun isBlockClass(clsName: String): Boolean {
-        var className = clsName.replace("/", ".")
-        className = mappingCollector.proguardClassName(className, className)
+    private fun isBlockClass(originFullMethod: String): Boolean {
+        val methodName = originFullMethod.replace("/", ".")
         var inBlock = false
         for (packageName in blockPackages + defaultBlockPackages) {
-            if (className.startsWith(packageName)) {
+            if (methodName.startsWith(packageName)) {
                 inBlock = true
                 break
             }
@@ -243,19 +246,48 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
         return inBlock
     }
 
-    override fun onMethodNeedFilter(methodNode: MethodNode, traceMethod: TraceMethod): Boolean {
-        val isFilter = super.onMethodNeedFilter(methodNode, traceMethod)
-        if (!isFilter) {
-            //TODO::more filter
-            val originClassMethodName = traceMethod.getOriginMethodName(mappingCollector)
-            return isBlockMethod(originClassMethodName)
+    private fun isTraceClass(originFullMethod: String): Boolean {
+        var needTrace = false
+        for (traceClassItem in traceClassSet) {
+            if (originFullMethod.startsWith(traceClassItem)) {
+                needTrace = true
+                break
+            }
         }
-        return isFilter
+        return needTrace
     }
 
+    private fun isTraceMethod(originFullMethod: String, classNode: ClassNode): Boolean {
+        traceMethodSet.forEach {
+            if (it.className.isEmpty()) {
+                //analysis superclass
+                val proguardSuperClassName = classNode.superName.replace("/", ".")
+                val originSuperclassName = mappingCollector.originalClassName(proguardSuperClassName, proguardSuperClassName)
+                if (originSuperclassName == it.superClassName && originFullMethod.contains("." + it.method + "(")) {
+                    return true
+                }
+                //analysis interfaces
+                classNode.interfaces.forEach { interfaceName ->
+                    val proguardInterfaceName = interfaceName.replace("/", ".")
+                    val originInterfaceName = mappingCollector.originalClassName(proguardInterfaceName, proguardInterfaceName)
+                    if (originInterfaceName == it.superClassName && originFullMethod.contains("." + it.method + "(")) {
+                        return true
+                    }
+                }
+            } else {
+                if (it.className == "*" && (originFullMethod.contains("." + it.method + "("))) {
+                    return true
+                }
+                if (originFullMethod.startsWith(it.className + "." + it.method + "(")) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
-    override fun isMethodWithParamesValue(methodName: String): Boolean {
-        allowClassMethodsWithParamMap.keys.forEach {
+    override fun isMethodWithParamValue(methodName: String): Boolean {
+        allowMethodsWithParamMap.keys.forEach {
             if (methodName.startsWith(it)) {
                 return true
             }
@@ -263,13 +295,32 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
         return false
     }
 
-    override fun getMethodWithParamesValue(methodName: String): List<Int>? {
-        allowClassMethodsWithParamMap.keys.forEach {
+    override fun getMethodWithParamValue(methodName: String): List<Int>? {
+        allowMethodsWithParamMap.keys.forEach {
             if (methodName.startsWith(it)) {
-                return allowClassMethodsWithParamMap[it]
+                return allowMethodsWithParamMap[it]
             }
         }
         return emptyList()
+    }
+
+    override fun onClassNeedFilter(originFullMethod: String): Boolean {
+        val needFilter = super.onClassNeedFilter(originFullMethod)
+        if (!needFilter) {
+            if (!isAllowPackage(originFullMethod)) {
+                return true
+            }
+            return isBlockClass(originFullMethod)
+        }
+        return needFilter
+    }
+
+    override fun onMethodNeedFilter(methodNode: MethodNode, traceMethod: TraceMethod, originFullMethod: String): Boolean {
+        val isFilter = super.onMethodNeedFilter(methodNode, traceMethod, originFullMethod)
+        if (!isFilter) {
+            return isBlockMethod(originFullMethod)
+        }
+        return isFilter
     }
 
     override fun isBlockMethod(methodName: String): Boolean {
@@ -280,4 +331,7 @@ class RheaTraceMethodFilter(var traceFilterFilePath: String?, mappingCollector: 
         }
         return false
     }
+
 }
+
+data class FilterTraceMethodData(var className: String = "", var superClassName: String = "", var method: String = "")

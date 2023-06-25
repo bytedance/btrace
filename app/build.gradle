@@ -17,11 +17,13 @@ android {
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
         }
+        signingConfig signingConfigs.debug
     }
 
     buildTypes {
         release {
             minifyEnabled true
+            debuggable false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -38,14 +40,13 @@ rheaTrace {
 
     compilation {
         traceWithMethodID = false
-        traceFilterFilePath = "${project.rootDir}/rhea-trace/traceFilter.txt"
+        if ("true".equalsIgnoreCase(precise_instrumentation_enable)) {
+            traceFilterFilePath = "${project.rootDir}/rhea-trace/preciseTraceFilter.txt"
+        } else {
+            traceFilterFilePath = "${project.rootDir}/rhea-trace/commonTraceFilter.txt"
+        }
         applyMethodMappingFilePath = ""
-    }
-
-    runtime {
-        mainThreadOnly false
-        startWhenAppLaunch true
-        atraceBufferSize "500000"
+        needPackageWithMethodMap = true
     }
 }
 
@@ -58,7 +59,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.3.2'
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.2'
-    implementation project(':rhea-core')
+    implementation 'com.bytedance.btrace:rhea-core:2.0.0'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'

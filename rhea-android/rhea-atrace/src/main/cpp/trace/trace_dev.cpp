@@ -21,7 +21,6 @@
 
 #include <unistd.h>
 
-#define LOG_TAG "Rhea.trace_dev"
 #include <utils/debug.h>
 #include <utils/xcc_fmt.h>
 

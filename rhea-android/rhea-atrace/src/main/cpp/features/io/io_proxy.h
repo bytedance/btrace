@@ -18,7 +18,7 @@
 
 #include <stdlib.h>
 
-#define MIN_FILE_COUNT 1024
+#define MIN_FILE_COUNT 0
 
 namespace bytedance {
 namespace atrace {
