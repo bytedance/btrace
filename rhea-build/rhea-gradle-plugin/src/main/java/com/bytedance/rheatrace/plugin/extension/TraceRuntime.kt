@@ -23,12 +23,6 @@ open class TraceRuntime(
 
     var startWhenAppLaunch: Boolean = true,
 
-    var enableIO: Boolean = true,
-
-    var enableMemory: Boolean = false,
-
-    var enableClassLoad: Boolean = false,
-
     var atraceBufferSize: String? = null
 
 ) {
@@ -41,9 +35,6 @@ open class TraceRuntime(
 
         if (mainThreadOnly != other.mainThreadOnly) return false
         if (startWhenAppLaunch != other.startWhenAppLaunch) return false
-        if (enableIO != other.enableIO) return false
-        if (enableMemory != other.enableMemory) return false
-        if (enableClassLoad != other.enableClassLoad) return false
         if (atraceBufferSize != other.atraceBufferSize) return false
 
         return true
@@ -52,14 +43,13 @@ open class TraceRuntime(
     override fun hashCode(): Int {
         var result = mainThreadOnly.hashCode()
         result = 31 * result + startWhenAppLaunch.hashCode()
-        result = 31 * result + enableIO.hashCode()
-        result = 31 * result + enableMemory.hashCode()
-        result = 31 * result + enableClassLoad.hashCode()
         result = 31 * result + (atraceBufferSize?.hashCode() ?: 0)
         return result
     }
 
     override fun toString(): String {
-        return "TraceRuntime(mainThreadOnly=$mainThreadOnly, startWhenAppLaunch=$startWhenAppLaunch, enableIO=$enableIO, enableMemory=$enableMemory, enableClassLoad=$enableClassLoad, atraceBufferSize=$atraceBufferSize)"
+        return "TraceRuntime(mainThreadOnly=$mainThreadOnly, startWhenAppLaunch=$startWhenAppLaunch, atraceBufferSize=$atraceBufferSize)"
     }
+
+
 }

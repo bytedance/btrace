@@ -15,17 +15,12 @@
  */
 package com.bytedance.rheatrace.precise.extension
 
-import com.ss.android.ugc.bytex.common.BaseExtension
-
 /**
  * @author majun
  * @date 2022/3/10
  */
-open class PreciseInstrumentationExtension : BaseExtension() {
+open class PreciseInstrumentationExtension  {
     var traceFilter: String? = null
-    override fun getName(): String {
-        return "PreciseInstrumentation"
-    }
 
     override fun toString(): String {
         return "PreciseInstrumentationExtension(traceFilter=$traceFilter)"

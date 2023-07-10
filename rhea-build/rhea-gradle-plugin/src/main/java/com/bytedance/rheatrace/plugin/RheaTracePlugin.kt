@@ -17,91 +17,35 @@
 package com.bytedance.rheatrace.plugin
 
 import com.android.build.gradle.AppExtension
-import com.bytedance.rheatrace.common.utils.RheaLog
-import com.bytedance.rheatrace.plugin.compiling.RheaTraceClassVisitor
 import com.bytedance.rheatrace.plugin.extension.RheaBuildExtension
 import com.bytedance.rheatrace.plugin.extension.TraceCompilation
 import com.bytedance.rheatrace.plugin.extension.TraceRuntime
-import com.bytedance.rheatrace.plugin.internal.CopyMappingTask.registerTaskSaveMappingToAssets
-import com.ss.android.ugc.bytex.common.CommonPlugin
-import com.ss.android.ugc.bytex.common.flow.main.Process
-import com.ss.android.ugc.bytex.common.visitor.ClassVisitorChain
-import com.ss.android.ugc.bytex.transformer.TransformEngine
-import com.ss.android.ugc.bytex.transformer.cache.FileData
+import com.bytedance.rheatrace.plugin.internal.CopyMappingTask
+import com.bytedance.rheatrace.plugin.internal.compat.RheaTraceCompat
+import org.gradle.api.GradleException
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.ExtensionAware
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.tree.ClassNode
 
-/**
- * @author majun
- * @date 2022/3/10
- */
-class RheaTracePlugin : CommonPlugin<RheaBuildExtension, RheaContext>() {
-    private val TAG = "RheaTracePlugin"
+class RheaTracePlugin : Plugin<Project> {
 
-    override fun onApply(project: Project) {
-        super.onApply(project)
-        RheaLog.i(TAG, "Rhea Plugin 2.0")
-        extension.runtime = (extension as ExtensionAware).extensions.create("runtime", TraceRuntime::class.java)
-        extension.compilation = (extension as ExtensionAware).extensions.create("compilation", TraceCompilation::class.java)
-        registerTaskSaveMappingToAssets(project, extension)
-    }
+    override fun apply(project: Project) {
+        val rheaTrace = project.extensions.create("rheaTrace", RheaBuildExtension::class.java)
 
-    override fun getContext(
-        project: Project,
-        android: AppExtension,
-        extension: RheaBuildExtension
-    ): RheaContext {
-        return RheaContext(project, android, extension)
-    }
-
-    override fun hookTransformName(): String {
-        return "dexBuilder"
-    }
-
-    override fun hookTask(): Boolean {
-        return if (project.gradle.startParameter.taskNames.toString().contains("release", true)) {
-            RheaLog.i(TAG, "project is release,Rhea Plugin hook dexBuilder task")
-            true
-        } else {
-            RheaLog.i(TAG, "project is debug,Rhea Plugin do not hook dexBuilder task")
-            false
+        rheaTrace.runtime = (rheaTrace as ExtensionAware).extensions.create(
+            "runtime", TraceRuntime::class.java
+        )
+        rheaTrace.compilation = (rheaTrace as ExtensionAware).extensions.create(
+            "compilation", TraceCompilation::class.java
+        )
+        if (!project.plugins.hasPlugin("com.android.application")) {
+            throw GradleException("Rhea Plugin: Android Application plugin required.")
         }
-    }
-
-    /**
-     * Collect ClassNode
-     */
-    override fun traverse(relativePath: String, node: ClassNode) {
-        super.traverse(relativePath, node)
-        context.traverse(relativePath, node)
-    }
-
-    override fun traverseIncremental(fileData: FileData, node: ClassNode?) {
-        super.traverseIncremental(fileData, node)
-        if (node != null) {
-            context.traverse(fileData.relativePath, node)
-        }
-    }
-
-    /**
-     * The methods are pretreated to determine which methods need to be piled
-     */
-    override fun beforeTransform(engine: TransformEngine) {
-        super.beforeTransform(engine)
-        context.beforeTransform(engine)
-    }
-
-    /**
-     * Pile the collected methods
-     */
-    override fun transform(relativePath: String, chain: ClassVisitorChain): Boolean {
-        chain.connect(RheaTraceClassVisitor(context))
-        return super.transform(relativePath, chain)
-    }
-
-    override fun flagForClassReader(process: Process?): Int {
-        return ClassReader.EXPAND_FRAMES
+        RheaTraceCompat().inject(
+            project.extensions.getByName("android") as AppExtension,
+            project,
+            rheaTrace
+        )
+        CopyMappingTask.registerTaskSaveMappingToAssets(project, rheaTrace)
     }
 }

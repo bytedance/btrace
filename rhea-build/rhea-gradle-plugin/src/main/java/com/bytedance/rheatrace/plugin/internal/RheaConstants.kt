@@ -22,6 +22,10 @@ object RheaConstants {
 
     const val METHOD_ID_DISPATCH = METHOD_ID_MAX - 1
 
+    const val RHEA_TRACE_ROOT = "rhea-trace"
+
+    const val TRACE_CLASS_DIR = "trace-class"
+
     const val DEFAULT_BLOCK_PACKAGES = ("[package]\n"
             + "-defaultblockpackage android/\n"
             + "-defaultblockpackage com/bytedance/rheatrace/\n")

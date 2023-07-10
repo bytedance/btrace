@@ -10,7 +10,6 @@ dependencies {
     implementation "org.ow2.asm:asm:$asm_version"
     implementation "org.ow2.asm:asm-tree:$asm_version"
     implementation "org.ow2.asm:asm-util:$asm_version"
-    implementation "com.bytedance.android.byteX:common:$bytex_version"
     implementation project(":rhea-build-common")
 }
 apply from: rootProject.file('gradle/java-artifacts.gradle')

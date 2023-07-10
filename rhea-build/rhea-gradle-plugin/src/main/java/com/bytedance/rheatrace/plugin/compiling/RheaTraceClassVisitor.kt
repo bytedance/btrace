@@ -34,16 +34,27 @@
 
 package com.bytedance.rheatrace.plugin.compiling
 
-import com.bytedance.rheatrace.plugin.RheaContext
+import com.bytedance.rheatrace.common.retrace.MappingCollector
+import com.bytedance.rheatrace.plugin.compiling.filter.TraceMethodFilter
+import com.bytedance.rheatrace.plugin.extension.TraceCompilation
 import com.bytedance.rheatrace.plugin.internal.RheaConstants
-import com.ss.android.ugc.bytex.common.visitor.BaseClassVisitor
+import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.Type
 import org.objectweb.asm.commons.AdviceAdapter
+import java.util.concurrent.ConcurrentHashMap
 
-class RheaTraceClassVisitor(private val rheaContext: RheaContext) : BaseClassVisitor() {
-
+class RheaTraceClassVisitor(
+    i: Int,
+    classVisitor: ClassVisitor,
+    private val mappingCollector: MappingCollector,
+    private var collectedMethodMap: ConcurrentHashMap<String, TraceMethod>,
+    private val applicationName: String?,
+    private val traceCompilation: TraceCompilation,
+    private val traceMethodFilter: TraceMethodFilter
+) :
+    ClassVisitor(i, classVisitor) {
     private var superName = ""
 
     private lateinit var className: String
@@ -63,7 +74,7 @@ class RheaTraceClassVisitor(private val rheaContext: RheaContext) : BaseClassVis
         interfaces: Array<String>?
     ) {
         this.className = name
-        this.isApplication = name.replace("/", ".") == rheaContext.applicationName.value
+        this.isApplication = name.replace("/", ".") == applicationName
         super.visit(version, access, name, signature, superName, interfaces)
         if (!superName.isNullOrEmpty()) {
             this.superName = superName
@@ -101,7 +112,10 @@ class RheaTraceClassVisitor(private val rheaContext: RheaContext) : BaseClassVis
                 name,
                 desc,
                 className,
-                rheaContext
+                mappingCollector,
+                collectedMethodMap,
+                traceCompilation,
+                traceMethodFilter
             )
         }
     }
@@ -182,14 +196,17 @@ class RheaTraceClassVisitor(private val rheaContext: RheaContext) : BaseClassVis
     }
 }
 
-private class TraceMethodAdapter(
+class TraceMethodAdapter(
     api: Int,
     mv: MethodVisitor,
     access: Int,
     name: String,
     desc: String,
     private val className: String,
-    val rheaContext: RheaContext
+    private val mappingCollector: MappingCollector,
+    private val collectedMethodMap: ConcurrentHashMap<String, TraceMethod>,
+    private val traceCompilation: TraceCompilation,
+    private val traceMethodFilter: TraceMethodFilter
 ) : AdviceAdapter(api, mv, access, name, desc) {
 
     companion object {
@@ -201,7 +218,7 @@ private class TraceMethodAdapter(
     private val fullMethodName: String = traceMethod.getFullMethodName()
 
     private val originMethodName: String =
-        traceMethod.getOriginMethodName(rheaContext.mappingCollector)
+        traceMethod.getOriginMethodName(mappingCollector)
 
     private val methodName: String = name
 
@@ -211,13 +228,12 @@ private class TraceMethodAdapter(
     private var vTimeLocal: Int? = null
 
     override fun onMethodEnter() {
-        val ctx = rheaContext
-        collectedMethod = ctx.collectedMethodMap[fullMethodName]
+        collectedMethod = collectedMethodMap[fullMethodName]
         collectedMethod?.apply {
-            withParamsValues = ctx.traceMethodFilter.isMethodWithParamValue(originMethodName)
+            withParamsValues = traceMethodFilter.isMethodWithParamValue(originMethodName)
             val methodName = getSimpleMethodName(this)
             if (withParamsValues) {
-                paramsValues = ctx.traceMethodFilter.getMethodWithParamValue(originMethodName)
+                paramsValues = traceMethodFilter.getMethodWithParamValue(originMethodName)
                 if (!paramsValues.isNullOrEmpty()) {
                     onCustomMethodVisit(paramsValues!!, methodName, true)
                     return
@@ -375,13 +391,12 @@ private class TraceMethodAdapter(
 
     private fun getSimpleMethodName(traceMethod: TraceMethod): String {
         val pClassName = className.replace("/", ".")
-        val methodInfo = rheaContext.mappingCollector.originalMethodInfo(
+        val methodInfo = mappingCollector.originalMethodInfo(
             pClassName,
             methodName,
             methodDesc.replace("/", ".")
         )
-        val originalClassName =
-            rheaContext.mappingCollector.originalClassName(pClassName, pClassName)
+        val originalClassName = mappingCollector.originalClassName(pClassName, pClassName)
         val splits = originalClassName.split(".")
         return splits[splits.size - 1] + ":" + methodInfo.originalName
     }
