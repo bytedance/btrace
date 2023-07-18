@@ -29,7 +29,7 @@ import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.JumpInsnNode
 import org.objectweb.asm.tree.MethodInsnNode
 import org.objectweb.asm.tree.MethodNode
-import java.util.LinkedList
+import java.util.*
 
 /**
  * @author majun

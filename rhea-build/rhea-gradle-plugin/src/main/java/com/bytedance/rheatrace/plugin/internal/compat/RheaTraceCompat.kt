@@ -52,6 +52,7 @@ class RheaTraceCompat {
         val enableR8 = "false" != project.properties["android.enableR8"]
         when {
             enableR8 -> {
+                RheaLog.i(TAG,"enableR8 is open , dont hook proguard task")
                 val transparentTransform = createTransparentTransform(appExtension, project, extension)
                 project.afterEvaluate {
                     appExtension.applicationVariants.all { variant ->
@@ -59,9 +60,12 @@ class RheaTraceCompat {
                     }
                 }
             }
-            VersionsCompat.lessThan(AGPVersion.AGP_3_6_0) ->
+            VersionsCompat.lessThan(AGPVersion.AGP_3_6_0) ->{
+                RheaLog.i(TAG,"AGPVersion lessThan AGP_3_6_0, hook proguard task")
                 legacyInject(appExtension, project, extension)
+            }
             VersionsCompat.lessThan(AGPVersion.AGP_4_0_0) -> {
+                RheaLog.i(TAG,"dont hook proguard task")
                 val transparentTransform = createTransparentTransform(appExtension, project, extension)
                 project.afterEvaluate {
                     appExtension.applicationVariants.all { variant ->
@@ -70,6 +74,7 @@ class RheaTraceCompat {
                 }
             }
             VersionsCompat.greatThanOrEqual(AGPVersion.AGP_4_0_0) -> {
+                RheaLog.i(TAG,"AGPVersion greatThanOrEqual AGP_4_0_0, hook proguard task")
                 val transparentTransform =
                     createTransparentTransform(appExtension, project, extension)
                 project.afterEvaluate {

@@ -16,7 +16,8 @@
 
 package com.bytedance.rheatrace.plugin.internal.compat
 
-import com.bytedance.rheatrace.common.ReflectUtil
+import com.bytedance.rheatrace.common.utils.ReflectUtil
+import org.objectweb.asm.Opcodes
 import java.lang.reflect.Field
 
 enum class AGPVersion(
@@ -27,6 +28,7 @@ enum class AGPVersion(
     AGP_3_6_0("3.6.0"),
     AGP_4_0_0("4.0.0"),
     AGP_4_1_0("4.1.0"),
+    AGP_7_0_0("7.0.0")
 }
 
 object VersionsCompat {
@@ -51,5 +53,11 @@ object VersionsCompat {
     val equalTo =
         { agpVersion: AGPVersion -> androidGradlePluginVersion.compareTo(agpVersion.value) == 0 }
 
+    @JvmStatic
+    val asmApi: Int
+        get() = when {
+            greatThanOrEqual(AGPVersion.AGP_7_0_0) -> Opcodes.ASM6
+            else -> Opcodes.ASM5
+        }
 
 }

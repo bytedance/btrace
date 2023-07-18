@@ -33,7 +33,7 @@
  */
 
 
-package com.bytedance.rheatrace.common
+package com.bytedance.rheatrace.common.utils
 
 import java.lang.reflect.Field
 import java.lang.reflect.Method

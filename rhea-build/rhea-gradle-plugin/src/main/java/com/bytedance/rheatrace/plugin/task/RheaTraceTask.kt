@@ -44,7 +44,6 @@ import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.compiling.TraceWeaver
 import com.bytedance.rheatrace.plugin.extension.RheaBuildExtension
 import com.bytedance.rheatrace.plugin.extension.TraceCompilation
-import com.bytedance.rheatrace.plugin.extension.TraceRuntime
 import com.bytedance.rheatrace.plugin.internal.RheaConstants
 import com.bytedance.rheatrace.plugin.internal.RheaFileUtils.getIgnoreMethodMapFilePath
 import com.bytedance.rheatrace.plugin.internal.RheaFileUtils.getMethodMapFilePath

@@ -39,10 +39,10 @@ import com.bytedance.rheatrace.common.utils.FileUtil
 import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.compiling.filter.TraceMethodFilter
 import com.bytedance.rheatrace.plugin.extension.TraceCompilation
+import com.bytedance.rheatrace.plugin.internal.compat.VersionsCompat
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.Opcodes
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -120,10 +120,10 @@ open class MethodTracer(
                 val changedFileOutput = getChangedFileOutput(classFile, input, output)
                 inputStream = FileInputStream(classFile)
                 val classReader = ClassReader(inputStream)
-                val classWriter = ClassWriter(ClassWriter.COMPUTE_MAXS)
+                val classWriter = ClassWriter(ClassWriter.COMPUTE_FRAMES)
                 val classVisitor: ClassVisitor =
                     RheaTraceClassVisitor(
-                        Opcodes.ASM5,
+                        VersionsCompat.asmApi,
                         classWriter,
                         mappingCollector,
                         collectedMethodMap,
@@ -191,10 +191,10 @@ open class MethodTracer(
                     if (zipEntryName.endsWith(".class")) {
                         val inputStream = zipFile.getInputStream(zipEntry)
                         val classReader = ClassReader(inputStream)
-                        val classWriter = ClassWriter(ClassWriter.COMPUTE_MAXS)
+                        val classWriter = ClassWriter(ClassWriter.COMPUTE_FRAMES)
                         val classVisitor: ClassVisitor =
                             RheaTraceClassVisitor(
-                                Opcodes.ASM5,
+                                VersionsCompat.asmApi,
                                 classWriter,
                                 mappingCollector,
                                 collectedMethodMap,

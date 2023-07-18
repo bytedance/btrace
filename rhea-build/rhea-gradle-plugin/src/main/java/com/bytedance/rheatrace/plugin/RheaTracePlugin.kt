@@ -17,6 +17,7 @@
 package com.bytedance.rheatrace.plugin
 
 import com.android.build.gradle.AppExtension
+import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.extension.RheaBuildExtension
 import com.bytedance.rheatrace.plugin.extension.TraceCompilation
 import com.bytedance.rheatrace.plugin.extension.TraceRuntime
@@ -28,8 +29,10 @@ import org.gradle.api.Project
 import org.gradle.api.plugins.ExtensionAware
 
 class RheaTracePlugin : Plugin<Project> {
+    private val TAG = "RheaTracePlugin"
 
     override fun apply(project: Project) {
+        RheaLog.i(TAG, "Rhea Plugin 2.0")
         val rheaTrace = project.extensions.create("rheaTrace", RheaBuildExtension::class.java)
 
         rheaTrace.runtime = (rheaTrace as ExtensionAware).extensions.create(

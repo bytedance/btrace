@@ -41,7 +41,7 @@ import com.android.build.api.transform.Transform
 import com.android.build.api.transform.TransformInvocation
 import com.android.build.gradle.api.BaseVariant
 import com.android.build.gradle.internal.pipeline.TransformTask
-import com.bytedance.rheatrace.common.ReflectUtil
+import com.bytedance.rheatrace.common.utils.ReflectUtil
 import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.compiling.TraceWeaver
 import com.bytedance.rheatrace.plugin.extension.RheaBuildExtension

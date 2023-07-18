@@ -35,36 +35,10 @@ class PreciseInstrumentationContext(val project: Project,val mappingCollector: M
     lateinit var evilRootMethodDetector: EvilRootMethodDetector
 
     fun init() {
-//        initMappingCollector()
         methodHelper = MethodHelper(this)
         evilRootMethodDetector = EvilRootMethodDetector()
         evilMethodDetector = EvilMethodDetector(methodHelper, evilRootMethodDetector)
     }
-
-//    private fun initMappingCollector() {
-//        if (mappingCollector != null) {
-//            return
-//        }
-//        mappingCollector = MappingCollector()
-//        val mappingFile = File(getMappingDir(), "mapping.txt")
-//        if (mappingFile.isFile) {
-//            val mappingReader = MappingReader(mappingFile)
-//            mappingReader.read(mappingCollector!!)
-//        }
-//    }
-//
-//    private fun getMappingDir(): String {
-//        return if (transformContext.variant.buildType.isMinifyEnabled) {
-//            transformContext.variant.mappingFile.parent
-//        } else {
-//            Joiner.on(File.separatorChar).join(
-//                project.buildDir.absolutePath,
-//                AndroidProject.FD_OUTPUTS,
-//                "mapping",
-//                transformContext.variantName
-//            )
-//        }
-//    }
 
     fun traverse(node: ClassNode) {
         evilRootMethodDetector.collect(node)
@@ -102,7 +76,6 @@ class PreciseInstrumentationContext(val project: Project,val mappingCollector: M
     }
 
     fun releaseContext() {
-        mappingCollector?.release()
         evilRootMethodDetector.release()
         evilMethodDetector.release()
         methodHelper.release()

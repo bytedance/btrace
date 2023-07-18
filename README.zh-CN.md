@@ -14,25 +14,8 @@
 
 ``` groovy
 buildscript {
-    repositories {
-        ...
-        maven {
-            url "https://artifact.bytedance.com/repository/byteX/"
-        }
-        ...
-    }
     dependencies {
-        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.0'
-    }
-}
-
-allprojects {
-    repositories {
-        ...
-        maven {
-            url "https://artifact.bytedance.com/repository/byteX/"
-        }
-        ...
+        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.2'
     }
 }
 ```
@@ -42,7 +25,7 @@ allprojects {
 ``` groovy
 dependencies {
     // rheatrace core lib
-    implementation "com.bytedance.btrace:rhea-core:2.0.0"
+    implementation "com.bytedance.btrace:rhea-core:2.0.2"
 }
 ...
 apply plugin: 'com.bytedance.rhea-trace'
@@ -125,7 +108,6 @@ RheaTrace 2.0 在命令行参数上做了大量改进，更偏于开发者使用
 |2 | 不支持 Perfetto 的设备（主要是8.1以前的系统）上无法采集到 CPU 调度等系统信息。| 建议使用 -mode simple 模式。 | 
 |3 | 32 位 apk 容易遇到虚拟内存不足的错误导致崩溃 | <ol><li>换用 64 位包；</li><li>如必须 32 位，建议通过 `-maxAppTraceBufferSize` 调小 bufferSize 减少虚拟内存占用，同时配置 `-threshold` 控制采集方法的阈值。这样可以在较小的虚拟内存空间内采集更长时间的 Trace. </li></ol>| 
 |4 | methodMapping 内置到 apk 内部需要将 mergeAssets 依赖于 dexBuilder，如果您的工程也有反向依赖，则会导致循环依赖问题 | 1. 通过配置 needPackageWithMethodMap = false，可以将内置 methodMapping 功能关闭，这样可以解决循环依赖的问题，但是在使用 btrace 功能时需要手动通过 -m 提供 methodMapping 路径。|
-|5 | 尚未支持 AGP 7.0+ |  |
 
 ## 意见反馈
 RheaTrace 2.0 在错误提示上也做了大量的优化，使用中遇到问题建议先通过提示信息尝试解决。当然，也会有一些边界的 case 我们没有做到准确的提示，或者提示的信息不够清晰，欢迎加入下面的`btrace 飞书群`进行反馈，我们将定期处理。也欢迎大家提供其他的反馈与建议！

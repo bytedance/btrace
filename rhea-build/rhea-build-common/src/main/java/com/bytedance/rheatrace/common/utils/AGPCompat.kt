@@ -35,7 +35,6 @@
 package com.bytedance.rheatrace.common.utils
 
 import com.android.SdkConstants
-import com.bytedance.rheatrace.common.ReflectUtil
 
 import org.gradle.api.GradleException
 import org.gradle.api.Project

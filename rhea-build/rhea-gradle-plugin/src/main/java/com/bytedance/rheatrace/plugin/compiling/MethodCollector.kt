@@ -38,6 +38,7 @@ import com.bytedance.rheatrace.common.retrace.MappingCollector
 import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.compiling.filter.RheaTraceMethodFilter
 import com.bytedance.rheatrace.plugin.internal.RheaConstants
+import com.bytedance.rheatrace.plugin.internal.compat.VersionsCompat
 import com.bytedance.rheatrace.precise.PreciseInstrumentationContext
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Opcodes
@@ -143,7 +144,7 @@ class MethodCollector(
             try {
                 inputStream = FileInputStream(classFile)
                 val classReader = ClassReader(inputStream)
-                val classNode = ClassNode(Opcodes.ASM5)
+                val classNode = ClassNode(VersionsCompat.asmApi)
                 classReader.accept(classNode, 0)
                 classNodeList.add(classNode)
                 if (traceMethodFilter.enablePreciseInstrumentation) {
@@ -175,7 +176,7 @@ class MethodCollector(
                         if (zipEntryName.endsWith(".class")) {
                             val inputStream = zipFile.getInputStream(zipEntry)
                             val classReader = ClassReader(inputStream)
-                            val classNode = ClassNode(Opcodes.ASM5)
+                            val classNode = ClassNode(VersionsCompat.asmApi)
                             classReader.accept(classNode, 0)
                             classNodeList.add(classNode)
                             if (traceMethodFilter.enablePreciseInstrumentation) {
@@ -266,80 +267,40 @@ class MethodCollector(
             methodMapFile.absolutePath
         )
         Collections.sort(methodList, Comparator<TraceMethod?> { o1, o2 -> o1!!.id - o2!!.id })
-        var pw: PrintWriter? = null
         try {
-            val fileOutputStream = FileOutputStream(methodMapFile, isIncremental)
-            val w: Writer = OutputStreamWriter(fileOutputStream, "UTF-8")
-            pw = PrintWriter(w)
-            pw.println("#" + UUID.randomUUID().toString())
-            for (traceMethod in methodList) {
-                traceMethod?.apply {
-                    traceMethod.revert(mappingCollector)
-                    pw.println(traceMethod.toString())
-                }
-
+            if (!methodMapFile.exists()) {
+                methodMapFile.createNewFile()
             }
+            val tempFile = File(methodMapFile.parentFile.toString() + "/temp_file.txt").apply {
+                this.createNewFile()
+            }
+            methodMapFile.bufferedReader().use { reader ->
+                tempFile.bufferedWriter().use { writer ->
+                    writer.write("#" + UUID.randomUUID().toString())
+                    writer.newLine()
+                    if (isIncremental) {
+                        reader.forEachLine { line ->
+                            // 将其他行原样写入临时文件
+                            writer.write(line)
+                            writer.newLine()
+                        }
+                    }
+                    for (traceMethod in methodList) {
+                        traceMethod?.apply {
+                            traceMethod.revert(mappingCollector)
+                            writer.write(traceMethod.toString())
+                            writer.newLine()
+                        }
+                    }
+                }
+            }
+            methodMapFile.delete()
+            tempFile.renameTo(methodMapFile)
         } catch (e: Exception) {
             RheaLog.e(TAG, "write method map Exception:%s", e.message)
             e.printStackTrace()
-        } finally {
-            if (pw != null) {
-                pw.flush()
-                pw.close()
-            }
         }
     }
-
-//    private inner class TraceClassNode(i: Int) : ClassNode(i) {
-//
-//        private var className: String? = null
-//
-//        private var isABSClass = false
-//
-//        override fun visit(
-//            version: Int, access: Int, name: String, signature: String?, superName: String, interfaces: Array<String>?
-//        ) {
-//            super.visit(version, access, name, signature, superName, interfaces)
-//            className = name
-//            if (access and Opcodes.ACC_ABSTRACT > 0 || access and Opcodes.ACC_INTERFACE > 0) {
-//                isABSClass = true
-//            }
-//            collectedClassExtendMap[name] = superName
-//        }
-//
-//        override fun visitMethod(
-//            access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?
-//        ): MethodVisitor {
-//            return if (isABSClass) {
-//                super.visitMethod(access, name, desc, signature, exceptions)
-//            } else {
-//                CollectMethodNode(this, access, name, desc, signature, exceptions)
-//            }
-//        }
-//    }
-
-//    private inner class CollectMethodNode(
-//        private val classNode: ClassNode, access: Int, name: String?, desc: String?, signature: String?, exceptions: Array<String>?
-//    ) : MethodNode(Opcodes.ASM5, access, name, desc, signature, exceptions) {
-//
-//        override fun visitEnd() {
-//            super.visitEnd()
-//            val traceMethod: TraceMethod = TraceMethod.create(0, access, classNode.name, name, desc)
-//            val needFilter: Boolean = traceMethodFilter.needFilter(this, traceMethod, classNode)
-//            if (needFilter) {
-//                if (!collectedIgnoreMethodMap.containsKey(traceMethod.getFullMethodName())) {
-//                    ignoreCount.incrementAndGet()
-//                    collectedIgnoreMethodMap[traceMethod.getFullMethodName()] = traceMethod
-//                }
-//            } else {
-//                if (!collectedMethodMap.containsKey(traceMethod.getFullMethodName())) {
-//                    traceMethod.id = methodId.incrementAndGet()
-//                    incrementCount.incrementAndGet()
-//                    collectedMethodMap[traceMethod.getFullMethodName()] = traceMethod
-//                }
-//            }
-//        }
-//    }
 
     internal inner class CollectMethodTask(var classNode: ClassNode) : Runnable {
         override fun run() {
