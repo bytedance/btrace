@@ -24,6 +24,7 @@ import com.bytedance.rheatrace.plugin.internal.RheaFileUtils.MethodMappingFileNa
 import com.bytedance.rheatrace.plugin.internal.RheaFileUtils.getMethodMapFilePath
 import org.gradle.api.Action
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.file.Directory
 import org.gradle.api.provider.Provider
 import java.io.File
@@ -52,7 +53,31 @@ object CopyMappingTask {
             }
             // copy mapping into assets
             RheaLog.i(TAG, "hookAssetsTask work")
-            hookAssetsTask(variant, project, assetsDir)
+            val enableR8 = "false" != project.properties["android.enableR8"]
+            if (enableR8) {
+                hookAssetsTaskR8(variant, project, assetsDir)
+            } else {
+                hookAssetsTask(variant, project, assetsDir)
+            }
+        }
+    }
+
+    /**
+     * hook assetsTask injects the methodMapping file into the Apk in the R8 compilation environment
+     */
+    private fun hookAssetsTaskR8(variant: ApplicationVariant, project: Project, assetsDir: Provider<Directory>) {
+        kotlin.runCatching {
+            val copyMappingTask = getCopyMappingTask(variant, project, assetsDir)
+            // RheaTraceTask -> copyMappingTask -> mergeAssetsTask
+            val mergeAssetsTask = project.tasks.getByName("merge${variant.name.capitalize()}Assets")
+            val rheaTraceTask =  project.tasks.getByName("transformClassesWithRheaTraceFor${variant.name.capitalize()}")
+            RheaLog.i(TAG, "${copyMappingTask.name} dependsOn ${rheaTraceTask.name}")
+            copyMappingTask.dependsOn(rheaTraceTask)
+            RheaLog.i(TAG, "${mergeAssetsTask.name} dependsOn ${copyMappingTask.name}")
+            mergeAssetsTask.dependsOn(copyMappingTask)
+        }.onFailure {
+            RheaLog.i(TAG, "hookAssetsTaskR8 error")
+            RheaLog.e(TAG, it.message.toString())
         }
     }
 
@@ -61,14 +86,7 @@ object CopyMappingTask {
      */
     private fun hookAssetsTask(variant: ApplicationVariant, project: Project, assetsDir: Provider<Directory>) {
         kotlin.runCatching {
-            val copyMappingTask = project.tasks.register("copyRhea${variant.name.capitalize()}Mapping") {
-                it.actions.add(Action {
-                    assetsDir.get().asFile.mkdirs()
-                    val input = File(getMethodMapFilePath(project, variant.name))
-                    input.copyTo(File(assetsDir.get().asFile, MethodMappingFileName), true)
-                    RheaLog.i(TAG, "copy $input into ${assetsDir.get().asFile}")
-                })
-            }.get()
+            val copyMappingTask = getCopyMappingTask(variant, project, assetsDir)
             // dexBuilder -> copyMapping -> mergeAssets
             val mergeAssetsTask = project.tasks.getByName("merge${variant.name.capitalize()}Assets")
             val dexBuilderTask = project.tasks.firstOrNull { it is TransformTask && it.transform.name == "dexBuilder" } ?: project.tasks.getByName("dexBuilder${variant.name.capitalize()}")
@@ -79,5 +97,16 @@ object CopyMappingTask {
         }.onFailure {
             RheaLog.e(TAG, it.message.toString())
         }
+    }
+
+    private fun getCopyMappingTask(variant: ApplicationVariant, project: Project, assetsDir: Provider<Directory>): Task {
+        return project.tasks.register("copyRhea${variant.name.capitalize()}Mapping") {
+            it.actions.add(Action {
+                assetsDir.get().asFile.mkdirs()
+                val input = File(getMethodMapFilePath(project, variant.name))
+                input.copyTo(File(assetsDir.get().asFile, MethodMappingFileName), true)
+                RheaLog.i(TAG, "copy $input into ${assetsDir.get().asFile}")
+            })
+        }.get()
     }
 }
