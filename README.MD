@@ -19,25 +19,8 @@ Add rhea-gradle-plugin as a dependency in the build.gradle file in the root dire
 
 ``` js
 buildscript {
-    repositories {
-        ...
-        maven {
-            url "https://artifact.bytedance.com/repository/byteX/"
-        }
-        ...
-    }
     dependencies {
-        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.0'
-    }
-}
-
-allprojects {
-    repositories {
-        ...
-        maven {
-            url "https://artifact.bytedance.com/repository/byteX/"
-        }
-        ...
+        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.3-rc01'
     }
 }
 ```
@@ -47,8 +30,7 @@ Then, apply the following plugins and dependencies to the app/build.gradle file.
 ``` js
 dependencies {
     // rheatrace core lib
-    implementation "com.bytedance.btrace:rhea-core:2.0.0"
-
+    implementation "com.bytedance.btrace:rhea-core:2.0.3-rc01"
 }
 ...
 apply plugin: 'com.bytedance.rhea-trace'
@@ -132,7 +114,6 @@ If you are interested in the internal details of RheaTrace 2.0, you can refer to
 |2| Devices that do not support Perfetto (mostly systems before 8.1) cannot collect system information such as CPU scheduling.                                                                                                                                                                                    | Try with -mode simple.                                                                                                                                                                                                                                                                      |
 |3 | If you're using a 32-bit APK, it can cause crashes due to out-of-memory errors.                                                                                                                                                                                                                               | To fix this, you can either switch to a 64-bit package, or if you have to use 32-bit, try reducing the virtual memory usage by lowering the bufferSize and configuring the method collection threshold. This will allow you to collect longer traces without using too much virtual memory. | 
 |4 | If you're having issues with circular dependencies because methodMapping is built into the APK and depends on mergeAssets                                                                                                                                                                                     | You can turn off the built-in methodMapping function. You can do this by setting needPackageWithMethodMap to false in the Gradle plugin configuration. However, if you need to use the btrace function, you'll have to manually provide the path of the methodMapping using the -m option.  |
- |5 | AGP 7.0+ is not supported yet                                                                                                                                                                                                                                                                                 |                                                                                                                                                                                                                                                                                             |
 
 
 ## Feedback

@@ -15,63 +15,29 @@
  */
 package com.bytedance.rheatrace.precise
 
-import com.android.build.gradle.AppExtension
-import com.android.builder.model.AndroidProject
 import com.bytedance.rheatrace.common.retrace.MappingCollector
-import com.bytedance.rheatrace.common.retrace.MappingReader
 import com.bytedance.rheatrace.precise.extension.PreciseInstrumentationExtension
 import com.bytedance.rheatrace.precise.method.EvilMethodDetector
 import com.bytedance.rheatrace.precise.method.EvilMethodInfo
 import com.bytedance.rheatrace.precise.method.EvilRootMethodDetector
 import com.bytedance.rheatrace.precise.method.MethodHelper
-import com.google.common.base.Joiner
-import com.ss.android.ugc.bytex.common.BaseContext
 import org.gradle.api.Project
 import org.objectweb.asm.tree.ClassNode
-import java.io.File
 import java.io.FileWriter
 
 /**
  * @author majun
  * @date 2022/3/10
  */
-class PreciseInstrumentationContext(project: Project, android: AppExtension, extension: PreciseInstrumentationExtension) :
-    BaseContext<PreciseInstrumentationExtension>(project, android, extension) {
+class PreciseInstrumentationContext(val project: Project,val mappingCollector: MappingCollector,val extension: PreciseInstrumentationExtension) {
     private lateinit var methodHelper: MethodHelper
     private lateinit var evilMethodDetector: EvilMethodDetector
     lateinit var evilRootMethodDetector: EvilRootMethodDetector
-    var mappingCollector: MappingCollector? = null
 
-    override fun init() {
-        initMappingCollector()
+    fun init() {
         methodHelper = MethodHelper(this)
         evilRootMethodDetector = EvilRootMethodDetector()
         evilMethodDetector = EvilMethodDetector(methodHelper, evilRootMethodDetector)
-    }
-
-    private fun initMappingCollector() {
-        if (mappingCollector != null) {
-            return
-        }
-        mappingCollector = MappingCollector()
-        val mappingFile = File(getMappingDir(), "mapping.txt")
-        if (mappingFile.isFile) {
-            val mappingReader = MappingReader(mappingFile)
-            mappingReader.read(mappingCollector!!)
-        }
-    }
-
-    private fun getMappingDir(): String {
-        return if (transformContext.variant.buildType.isMinifyEnabled) {
-            transformContext.variant.mappingFile.parent
-        } else {
-            Joiner.on(File.separatorChar).join(
-                project.buildDir.absolutePath,
-                AndroidProject.FD_OUTPUTS,
-                "mapping",
-                transformContext.variantName
-            )
-        }
     }
 
     fun traverse(node: ClassNode) {
@@ -109,9 +75,7 @@ class PreciseInstrumentationContext(project: Project, android: AppExtension, ext
         }
     }
 
-    override fun releaseContext() {
-        super.releaseContext()
-        mappingCollector?.release()
+    fun releaseContext() {
         evilRootMethodDetector.release()
         evilMethodDetector.release()
         methodHelper.release()

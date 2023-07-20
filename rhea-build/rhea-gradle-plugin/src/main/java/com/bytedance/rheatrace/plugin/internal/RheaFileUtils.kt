@@ -27,34 +27,24 @@ import java.io.File
 object RheaFileUtils {
     const val MethodMappingFileName = "methodMapping.txt"
     private const val IgnoreMethodMappingFileName = "ignoreMethodMapping.txt"
-    var outDir = ""
     fun getMethodMapFilePath(project: Project, variantName: String): String {
-        if (outDir.isEmpty()) {
-            outDir = getRheaOutDir(project, variantName)
-        }
-        return "$outDir/$MethodMappingFileName"
+        return "${getRheaOutDir(project, variantName)}/$MethodMappingFileName"
     }
 
     fun getIgnoreMethodMapFilePath(project: Project, variantName: String): String {
-        if (outDir.isEmpty()) {
-            outDir = getRheaOutDir(project, variantName)
-        }
-        return "$outDir/$IgnoreMethodMappingFileName"
+        return "${getRheaOutDir(project, variantName)}/$IgnoreMethodMappingFileName"
     }
 
-    public fun getRheaOutDir(project: Project, variantName: String): String {
+    private fun getRheaOutDir(project: Project, variantName: String): String {
         return Joiner.on(File.separatorChar).join(
-            project.buildDir.absolutePath,
-            AndroidProject.FD_OUTPUTS,
-            "rhea",
-            variantName
+            project.buildDir.absolutePath, AndroidProject.FD_OUTPUTS, "rhea", variantName
         )
     }
 
     fun getFileLineCount(file: File) : Int {
         val input = file.bufferedReader()
         var count = 0
-        input.useLines { it.forEach { count++ } }
+        input.useLines { it.forEach { _ -> count++ } }
         return count
     }
 }

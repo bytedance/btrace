@@ -61,18 +61,17 @@ object CopyMappingTask {
      */
     private fun hookAssetsTask(variant: ApplicationVariant, project: Project, assetsDir: Provider<Directory>) {
         kotlin.runCatching {
-            val variantName = variant.name.capitalize()
-            val copyMappingTask = project.tasks.register("copyRhea${variantName}Mapping") {
+            val copyMappingTask = project.tasks.register("copyRhea${variant.name.capitalize()}Mapping") {
                 it.actions.add(Action {
                     assetsDir.get().asFile.mkdirs()
-                    val input = File(getMethodMapFilePath(project, variantName))
+                    val input = File(getMethodMapFilePath(project, variant.name))
                     input.copyTo(File(assetsDir.get().asFile, MethodMappingFileName), true)
                     RheaLog.i(TAG, "copy $input into ${assetsDir.get().asFile}")
                 })
             }.get()
             // dexBuilder -> copyMapping -> mergeAssets
-            val mergeAssetsTask = project.tasks.getByName("merge${variantName}Assets")
-            val dexBuilderTask = project.tasks.firstOrNull { it is TransformTask && it.transform.name == "dexBuilder" } ?: project.tasks.getByName("dexBuilder$variantName")
+            val mergeAssetsTask = project.tasks.getByName("merge${variant.name.capitalize()}Assets")
+            val dexBuilderTask = project.tasks.firstOrNull { it is TransformTask && it.transform.name == "dexBuilder" } ?: project.tasks.getByName("dexBuilder${variant.name.capitalize()}")
             RheaLog.i(TAG, "${copyMappingTask.name} dependsOn ${dexBuilderTask.name}")
             copyMappingTask.dependsOn(dexBuilderTask)
             RheaLog.i(TAG, "${mergeAssetsTask.name} dependsOn ${copyMappingTask.name}")

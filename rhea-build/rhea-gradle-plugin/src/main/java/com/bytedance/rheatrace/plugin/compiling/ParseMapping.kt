@@ -34,21 +34,18 @@
 
 package com.bytedance.rheatrace.plugin.compiling
 
-import com.android.builder.model.AndroidProject
 import com.bytedance.rheatrace.common.retrace.MappingCollector
 import com.bytedance.rheatrace.common.retrace.MappingReader
 import com.bytedance.rheatrace.common.utils.RheaLog
-import com.bytedance.rheatrace.plugin.RheaContext
 import com.bytedance.rheatrace.plugin.internal.RheaConstants
-import com.google.common.base.Joiner
 import java.io.File
-import java.util.*
+import java.util.Scanner
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 class ParseMappingTask constructor(
-    private val rheaContext: RheaContext,
     private val methodId: AtomicInteger,
+    private val methodMappingDir: String,
     private val applyMethodMappingFilePath: String?,
     private val mappingCollector: MappingCollector,
     private val collectedMethodMap: ConcurrentHashMap<String, TraceMethod>
@@ -61,7 +58,7 @@ class ParseMappingTask constructor(
     override fun run() {
         val start = System.currentTimeMillis()
 
-        val mappingFile = File(getMappingDir(), "mapping.txt")
+        val mappingFile = File(methodMappingDir, "mapping.txt")
         if (mappingFile.isFile) {
             val mappingReader =
                 MappingReader(
@@ -141,18 +138,5 @@ class ParseMappingTask constructor(
         methodMap.clear()
         methodMap.putAll(retraceMethodMap)
         retraceMethodMap.clear()
-    }
-
-    private fun getMappingDir(): String {
-        return if (rheaContext.transformContext.variant.buildType.isMinifyEnabled) {
-            rheaContext.transformContext.variant.mappingFile.parent
-        } else {
-            Joiner.on(File.separatorChar).join(
-                rheaContext.project.buildDir.absolutePath,
-                AndroidProject.FD_OUTPUTS,
-                "mapping",
-                rheaContext.transformContext.variantName
-            )
-        }
     }
 }
