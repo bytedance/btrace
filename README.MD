@@ -20,7 +20,7 @@ Add rhea-gradle-plugin as a dependency in the build.gradle file in the root dire
 ``` js
 buildscript {
     dependencies {
-        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.3-rc01'
+        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.3-rc02'
     }
 }
 ```
@@ -30,7 +30,7 @@ Then, apply the following plugins and dependencies to the app/build.gradle file.
 ``` js
 dependencies {
     // rheatrace core lib
-    implementation "com.bytedance.btrace:rhea-core:2.0.3-rc01"
+    implementation "com.bytedance.btrace:rhea-core:2.0.3-rc02"
 }
 ...
 apply plugin: 'com.bytedance.rhea-trace'
