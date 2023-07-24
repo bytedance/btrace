@@ -21,6 +21,7 @@ import com.bytedance.rheatrace.processor.core.TraceError;
 import com.bytedance.rheatrace.processor.core.Workspace;
 import com.bytedance.rheatrace.processor.os.OS;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -28,7 +29,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.util.List;
 
 /**
@@ -44,7 +44,7 @@ public class PerfettoCapture implements SystemLevelCapture {
         File bin = Workspace.perfettoBinary();
         try (InputStream perfetto = TraceProcessor.class.getResourceAsStream("/" + OS.get().perfettoScriptName())) {
             assert perfetto != null;
-            IOUtils.copy(perfetto, Files.newOutputStream(bin.toPath()));
+            FileUtils.copyInputStreamToFile(perfetto, bin);
             OS.get().setExecutable(bin);
         }
         Log.d("record_android_trace ready: " + bin.getAbsolutePath());
