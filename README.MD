@@ -95,6 +95,7 @@ The following table describes the parameters for RheaTrace 2.0 command-line argu
 |-mainThreadOnly|N/A|Only traces the main thread.|
 |-r||Automatically restarts the app to capture the startup trace.|
 |-fullClassName||Enabling the package name for trace information.|
+|-deeplink $deeplink|N/A|Specifies the deeplink.|
 |rhea.binder||Enables binder information enhancement.|
 |rhea.render||Enables rendering monitoring capabilities.|
 |rhea.io||Enables I/O monitoring capabilities.|

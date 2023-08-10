@@ -88,6 +88,7 @@ RheaTrace 2.0 在命令行参数上做了大量改进，更偏于开发者使用
 |  -mainThreadOnly |  | 仅采集主线程 trace |
 | -r |  | 自动重启以抓取启动过程的 trace |
 | -fullClassName | | trace 信息默认是不包含包名的，此参数可开启包名 |
+|-deeplink $deeplink|| 指定 deeplink 链接 |
 | rhea.binder || 开启 binder 信息增强 |
 | rhea.render || 开启渲染监控能力 |
 | rhea.io || 开启 IO 监控能力 |
