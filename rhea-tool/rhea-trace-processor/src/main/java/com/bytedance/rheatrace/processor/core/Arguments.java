@@ -54,6 +54,7 @@ public class Arguments {
     public final boolean fullClassName;
     public final String outputPath;
     public final String mappingPath;
+    public final String deeplink;
     public String cmdLine;
 
     public final String[] systraceArgs;
@@ -87,6 +88,7 @@ public class Arguments {
         outputPath = Parser.outputPath;
         categories = Collections.unmodifiableList(Parser.categories);
         port = Parser.port;
+        deeplink = Parser.deeplink;
     }
 
     private static class Parser {
@@ -100,6 +102,7 @@ public class Arguments {
         private static boolean fullClassName;
         private static String outputPath;
         private static String mappingPath;
+        private static String deeplink;
 
         private static TcpPort port = new TcpPort() {
             @Override
@@ -206,6 +209,9 @@ public class Arguments {
                             }
                         };
                         break;
+                    case "-deeplink":
+                        deeplink = args[i++];
+                        break;
                     default:
                         if (arg.startsWith("rhea.")) {
                             int dot = arg.indexOf('.');
@@ -217,7 +223,7 @@ public class Arguments {
             }
             List<String> result = new ArrayList<>();
             i = 0;
-            List<String> oneValueArgNames = Arrays.asList("-m", "-mode", "-maxAppTraceBufferSize", "-port", "-threshold");
+            List<String> oneValueArgNames = Arrays.asList("-m", "-mode", "-maxAppTraceBufferSize", "-port", "-threshold", "-deeplink");
             List<String> noneValueArgNames = Arrays.asList("-mainThreadOnly", "-fullClassName", "-debug", "-r");
             while (i < args.length) {
                 String cur = args[i++].trim();

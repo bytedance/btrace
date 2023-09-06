@@ -93,6 +93,9 @@ public class Main {
             if (arg.restart) {
                 Adb.call("shell", "am", "force-stop", appName);
                 Adb.call("shell", "am", "start", "-n", getActivityLauncher(), "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER");
+            } else if (arg.deeplink != null) {
+                Adb.call("shell", "am", "force-stop", appName);
+                Adb.call("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", arg.deeplink);
             } else {
                 Adb.call("shell", "am", "broadcast", "-a", "com.bytedance.rheatrace.switch.start", appName);
             }
