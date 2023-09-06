@@ -88,11 +88,11 @@ ssize_t proxy_write_chk(int fd, const void* buf, size_t count, size_t buf_size) 
 }
 
 ssize_t proxy_pwrite(int fd, const void *buf, size_t count, off_t offset) {
+  BYTEHOOK_STACK_SCOPE();
   if (count < MIN_FILE_COUNT || offset < 0 ) {
     size_t ret = BYTEHOOK_CALL_PREV(proxy_pwrite, fd, buf, count, offset);
     return ret;
   }
-  BYTEHOOK_STACK_SCOPE();
   ATRACE_BEGIN_VALUE("pwrite:", FileInfo(fd, count, offset).c_str());
 
   size_t ret = BYTEHOOK_CALL_PREV(proxy_pwrite, fd, buf, count, offset);
@@ -103,11 +103,11 @@ ssize_t proxy_pwrite(int fd, const void *buf, size_t count, off_t offset) {
 
 // read family
 ssize_t proxy_read(int fd, void* buf, size_t count) {
+  BYTEHOOK_STACK_SCOPE();
   if (count < MIN_FILE_COUNT) {
     size_t ret = BYTEHOOK_CALL_PREV(proxy_read, fd, buf, count);
     return ret;
   }
-  BYTEHOOK_STACK_SCOPE();
   ATRACE_BEGIN_VALUE("read:", FileInfo(fd, count).c_str());
 
   size_t ret = BYTEHOOK_CALL_PREV(proxy_read, fd, buf, count);
@@ -117,11 +117,11 @@ ssize_t proxy_read(int fd, void* buf, size_t count) {
 }
 
 ssize_t proxy_read_chk(int fd, void* buf, size_t count, size_t buf_size) {
+  BYTEHOOK_STACK_SCOPE();
   if (count < MIN_FILE_COUNT) {
     size_t ret = BYTEHOOK_CALL_PREV(proxy_read_chk, fd, buf, count, buf_size);
     return ret;
   }
-  BYTEHOOK_STACK_SCOPE();
   ATRACE_BEGIN_VALUE("__read_chk:", FileInfo(fd, count).c_str());
 
   size_t ret = BYTEHOOK_CALL_PREV(proxy_read_chk, fd, buf, count, buf_size);
@@ -151,11 +151,11 @@ ssize_t proxy_writev(int fd, const struct inovec *iov, int invcnt) {
 }
 
 ssize_t proxy_pread(int fd, void *buf, size_t count, off_t offset) {
+  BYTEHOOK_STACK_SCOPE();
   if (count < MIN_FILE_COUNT || offset < 0) {
     size_t ret = BYTEHOOK_CALL_PREV(proxy_pread, fd, buf, count, offset);
     return ret;
   }
-  BYTEHOOK_STACK_SCOPE();
   ATRACE_BEGIN_VALUE("pread:", FileInfo(fd, count, offset).c_str());
 
   size_t ret = BYTEHOOK_CALL_PREV(proxy_pread, fd, buf, count, offset);
