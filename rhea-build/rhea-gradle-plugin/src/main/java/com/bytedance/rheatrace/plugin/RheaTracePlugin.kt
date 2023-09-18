@@ -17,6 +17,7 @@
 package com.bytedance.rheatrace.plugin
 
 import com.android.build.gradle.AppExtension
+import com.android.build.gradle.BaseExtension
 import com.bytedance.rheatrace.common.utils.RheaLog
 import com.bytedance.rheatrace.plugin.extension.RheaBuildExtension
 import com.bytedance.rheatrace.plugin.extension.TraceCompilation
@@ -27,6 +28,8 @@ import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.ExtensionAware
+import org.gradle.internal.classloader.VisitableURLClassLoader
+import java.io.File
 
 class RheaTracePlugin : Plugin<Project> {
     private val TAG = "RheaTracePlugin"
@@ -44,11 +47,30 @@ class RheaTracePlugin : Plugin<Project> {
         if (!project.plugins.hasPlugin("com.android.application")) {
             throw GradleException("Rhea Plugin: Android Application plugin required.")
         }
+        val appExtension = project.extensions.getByName("android") as AppExtension
         RheaTraceCompat().inject(
-            project.extensions.getByName("android") as AppExtension,
+            appExtension,
             project,
             rheaTrace
         )
         CopyMappingTask.registerTaskSaveMappingToAssets(project, rheaTrace)
+        project.afterEvaluate {
+            val sdkDirectory = appExtension.sdkDirectory
+            val compileSdkVersion =
+                appExtension.compileSdkVersion
+                    ?: throw IllegalStateException("compileSdkVersion获取失败")
+            val androidJarPath = "platforms/${compileSdkVersion}/android.jar"
+            val androidJar = File(sdkDirectory, androidJarPath)
+            appendFileToClassLoader(androidJar)
+        }
+    }
+
+    private fun appendFileToClassLoader(file: File) {
+        if (javaClass.classLoader is VisitableURLClassLoader) {
+            val classLoader =
+                javaClass.classLoader as VisitableURLClassLoader
+            println("appendToClassLoader $file")
+            classLoader.addURL(file.toURL())
+        }
     }
 }

@@ -1,5 +1,6 @@
+apply plugin: "java-library"
+apply plugin: 'java'
 apply plugin: 'kotlin'
-
 version POM_VERSION_NAME
 group POM_GROUP_ID
 
@@ -13,3 +14,8 @@ dependencies {
 
 apply from: rootProject.file('gradle/java-artifacts.gradle')
 apply from: rootProject.file('gradle/gradle-maven-upload.gradle')
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}

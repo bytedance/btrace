@@ -14,3 +14,27 @@ artifacts {
     archives javadocJar
     archives sourcesJar
 }
+jar {
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+}
+afterEvaluate {
+    publishing {
+        repositories {
+            maven {
+                // change to point to your repo, e.g. http://my.org/repo
+                url = project.rootProject.buildDir.path + "/repo"
+            }
+        }
+        publications {
+            paidRelease(MavenPublication) {
+                // The following applies a component to this publication
+                // which results in publishing an app bundle.
+                from components.java
+
+                groupId = POM_GROUP_ID
+                artifactId = project.name
+                version = POM_VERSION_NAME
+            }
+        }
+    }
+}
