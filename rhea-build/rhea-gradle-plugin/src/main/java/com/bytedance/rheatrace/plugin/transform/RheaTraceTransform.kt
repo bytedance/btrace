@@ -145,7 +145,6 @@ class RheaTraceTransform(
     }
 
     private fun transforming(invocation: TransformInvocation, transformArgs: TransformArgs) {
-
         val start = System.currentTimeMillis()
 
         val outputProvider = invocation.outputProvider!!

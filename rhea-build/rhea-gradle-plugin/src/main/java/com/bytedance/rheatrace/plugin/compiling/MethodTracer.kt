@@ -175,21 +175,19 @@ open class MethodTracer(
         changedFileOutput.createNewFile()
         return changedFileOutput
     }
-
     private fun innerTraceMethodFromJar(input: File, output: File) {
         var zipOutputStream: ZipOutputStream? = null
-        var zipFile: ZipFile? = null
+        var inputZipFile: ZipFile? = null
         try {
             zipOutputStream = ZipOutputStream(FileOutputStream(output))
-            zipFile = ZipFile(input)
-            val enumeration = zipFile.entries()
-            var zipEntry: ZipEntry? = null
+            inputZipFile = ZipFile(input)
+            val enumeration = inputZipFile.entries()
             while (enumeration.hasMoreElements()) {
-                try {
-                    zipEntry = enumeration.nextElement()
-                    val zipEntryName = zipEntry.name
-                    if (zipEntryName.endsWith(".class")) {
-                        val inputStream = zipFile.getInputStream(zipEntry)
+                val inputZipEntry = enumeration.nextElement()
+                val zipEntryName = inputZipEntry.name
+                if (zipEntryName.endsWith(".class")) {
+                    try {
+                        val inputStream = inputZipFile.getInputStream(inputZipEntry)
                         val classReader = ClassReader(inputStream)
                         val classWriter = ClassWriter(ClassWriter.COMPUTE_FRAMES)
                         val classVisitor: ClassVisitor =
@@ -204,54 +202,52 @@ open class MethodTracer(
                             )
                         classReader.accept(classVisitor, ClassReader.EXPAND_FRAMES)
                         val data = classWriter.toByteArray()
-                        val byteArrayInputStream: InputStream = ByteArrayInputStream(data)
+
+                        // 创建新的 ZipEntry 并将数据写入
                         val newZipEntry = ZipEntry(zipEntryName)
-                        FileUtil.addZipEntry(zipOutputStream, newZipEntry, byteArrayInputStream)
+                        zipOutputStream.putNextEntry(newZipEntry)
+                        zipOutputStream.write(data)
+                        zipOutputStream.closeEntry()
+                    } catch (e: Throwable) {
+                        RheaLog.e(
+                            TAG,
+                            "Failed to trace class: %s, e: %s",
+                            inputZipEntry.name,
+                            e
+                        )
                     }
-                } catch (e: Throwable) {
-                    RheaLog.e(
-                        TAG,
-                        "Failed to trace class:%s, e:%s",
-                        if (zipEntry == null) "null" else zipEntry.name,
-                        e
-                    )
-                    if (zipEntry != null) {
-                        FileUtil.addZipEntry(zipOutputStream, zipEntry, zipFile.getInputStream(zipEntry))
-                    } else {
-                        throw RuntimeException("zipEntry == null")
-                    }
+                } else {
+                    // 直接将条目复制到输出压缩包中
+                    val newZipEntry = ZipEntry(zipEntryName)
+                    zipOutputStream.putNextEntry(newZipEntry)
+                    val inputStream = inputZipFile.getInputStream(inputZipEntry)
+                    inputStream.copyTo(zipOutputStream)
+                    zipOutputStream.closeEntry()
                 }
             }
         } catch (e: Exception) {
+            e.printStackTrace()
             RheaLog.e(
                 TAG,
-                "[innerTraceMethodFromJar] input:%s output:%s e:%s",
+                "[innerTraceMethodFromJar] input: %s output: %s e: %s",
                 input.name,
                 output,
                 e
             )
-            try {
-                Files.copy(
-                    input.toPath(),
-                    output.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING
-                )
-            } catch (e1: Exception) {
-                e1.printStackTrace()
-            }
         } finally {
             try {
-                if (zipOutputStream != null) {
-                    zipOutputStream.finish()
-                    zipOutputStream.flush()
-                    zipOutputStream.close()
-                }
-                zipFile?.close()
+                zipOutputStream?.close()
             } catch (e: Exception) {
-                RheaLog.e(TAG, "close stream err!")
+                // 处理关闭异常
+            }
+            try {
+                inputZipFile?.close()
+            } catch (e: Exception) {
+                // 处理关闭异常
             }
         }
     }
+
 
     private fun listClassFiles(
         classFiles: ArrayList<File>,

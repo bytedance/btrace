@@ -46,6 +46,7 @@ import com.bytedance.rheatrace.precise.PreciseInstrumentationContext
 import com.bytedance.rheatrace.precise.extension.PreciseInstrumentationExtension
 import com.google.common.hash.Hashing
 import org.gradle.api.Project
+import org.gradle.internal.classloader.VisitableURLClassLoader
 import java.io.File
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -77,7 +78,6 @@ class TraceWeaver(
         legacyReplaceChangedFile: ((File, Map<File, Status>) -> Any)?,
         legacyReplaceFile: ((File, File) -> (Any))?
     ) {
-
         RheaLog.i(TAG, "isIncremental ===> $isIncremental")
         val executor: ExecutorService = Executors.newFixedThreadPool(16)
 
@@ -115,6 +115,7 @@ class TraceWeaver(
                 val collectJarInputTask = CollectJarInputTask(
                     file, status, inputToOutput, isIncremental, traceClassOutputDirectory, legacyReplaceFile, jarInputOutMap
                 )
+                appendFileToClassLoader(file)
                 futures.add(executor.submit(collectJarInputTask))
             }
         }
@@ -151,6 +152,15 @@ class TraceWeaver(
         time = System.currentTimeMillis() - start
         RheaLog.i(TAG, "[doTransform] Step(3)[Trace]... cost:%sms", time)
         collectedMethodMap.clear()
+    }
+
+    private fun appendFileToClassLoader(file: File) {
+        if (javaClass.classLoader is VisitableURLClassLoader) {
+            val classLoader =
+                javaClass.classLoader as VisitableURLClassLoader
+            println("appendToClassLoader $file")
+            classLoader.addURL(file.toURL())
+        }
     }
 
     private fun initMethodId(isIncremental: Boolean): AtomicInteger {

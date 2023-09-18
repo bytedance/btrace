@@ -14,7 +14,7 @@ task androidJavadocs(type: Javadoc) {
         if (variant.name == 'release') {
             try {
                 owner.classpath += variant.getJavaCompileProvider().get().classpath
-            } catch(Exception e) {
+            } catch (Exception e) {
                 owner.classpath += variant.getJavaCompile().classpath
             }
         }
@@ -37,4 +37,26 @@ task androidSourcesJar(type: Jar) {
 artifacts {
     archives androidSourcesJar
     archives androidJavadocsJar
+}
+
+afterEvaluate {
+    publishing {
+        repositories {
+            maven {
+                // change to point to your repo, e.g. http://my.org/repo
+                url = project.rootProject.buildDir.path + "/repo"
+            }
+        }
+        publications {
+            paidRelease(MavenPublication) {
+                // The following applies a component to this publication
+                // which results in publishing an app bundle.
+                from components.release
+
+                groupId = POM_GROUP_ID
+                artifactId = project.name
+                version = POM_VERSION_NAME
+            }
+        }
+    }
 }

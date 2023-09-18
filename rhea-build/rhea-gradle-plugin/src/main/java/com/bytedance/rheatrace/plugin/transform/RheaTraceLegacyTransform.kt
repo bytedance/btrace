@@ -121,7 +121,6 @@ class RheaTraceLegacyTransform(
     }
 
     private fun doTransform(invocation: TransformInvocation, transformArgs: TransformArgs) {
-
         val start = System.currentTimeMillis()
 
         val isIncremental = invocation.isIncremental && this.isIncremental
