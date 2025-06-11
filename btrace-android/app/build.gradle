@@ -1,6 +1,5 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'com.bytedance.rhea-trace'
 android {
 
     compileSdkVersion versions.compileSdk
@@ -20,6 +19,11 @@ android {
         signingConfig signingConfigs.debug
     }
 
+//    packagingOptions {
+//        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+//        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+//    }
+
     buildTypes {
         release {
             minifyEnabled true
@@ -36,20 +40,6 @@ android {
     }
 }
 
-rheaTrace {
-
-    compilation {
-        traceWithMethodID = false
-        if ("true".equalsIgnoreCase(precise_instrumentation_enable)) {
-            traceFilterFilePath = "${project.rootDir}/rhea-trace/preciseTraceFilter.txt"
-        } else {
-            traceFilterFilePath = "${project.rootDir}/rhea-trace/commonTraceFilter.txt"
-        }
-        applyMethodMappingFilePath = ""
-        needPackageWithMethodMap = true
-    }
-}
-
 dependencies {
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
@@ -59,8 +49,13 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.3.2'
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.2'
-    implementation 'com.bytedance.btrace:rhea-core:2.0.0'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
+
+    if (enable_btrace == 'true') {
+        implementation  project(':rhea-inhouse')
+    } else {
+        implementation project(':rhea-inhouse-noop')
+    }
 }

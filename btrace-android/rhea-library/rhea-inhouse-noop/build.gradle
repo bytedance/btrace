@@ -1,0 +1,32 @@
+apply plugin: 'com.android.library'
+
+version POM_VERSION_NAME
+group POM_GROUP_ID
+
+android {
+	ndkVersion versions.ndkVersion
+	compileSdkVersion versions.compileSdk
+	buildToolsVersion versions.buildTools
+
+	defaultConfig {
+		minSdkVersion versions.minSdk
+		targetSdkVersion versions.targetSdk
+
+		consumerProguardFiles "consumer-rules.pro"
+	}
+
+	buildTypes {
+		release {
+			minifyEnabled false
+			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+		}
+	}
+
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_1_8
+		targetCompatibility JavaVersion.VERSION_1_8
+	}
+}
+
+apply from: rootProject.file('gradle/android-artifacts.gradle')
+apply from: rootProject.file('gradle/gradle-maven-upload.gradle')

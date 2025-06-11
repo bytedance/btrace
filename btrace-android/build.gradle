@@ -19,8 +19,6 @@ buildscript {
     dependencies {
         classpath "com.android.tools.build:gradle:$agp_version"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "org.jetbrains.dokka:dokka-gradle-plugin:0.10.0"
-        classpath "com.bytedance.btrace:rhea-gradle-plugin:$rhea_gradle_plugin_vesion"
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -35,15 +33,11 @@ allprojects {
     }
 }
 
-subprojects {
-    apply from: rootProject.file('./gradle/checkStyle.gradle')
-}
-
 ext {
     versions = [
             'compileSdk': 30,
             'buildTools': '30.0.2',
-            'minSdk'    : 16,
+            'minSdk'    : 21,
             'targetSdk' : 30,
             'ndkVersion': '21.1.6352462'
     ]

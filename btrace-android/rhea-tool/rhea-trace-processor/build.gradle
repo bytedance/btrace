@@ -11,16 +11,16 @@ java {
 }
 
 dependencies {
-    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'commons-io:commons-io:2.19.0'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
-    implementation 'com.google.protobuf:protobuf-java:3.21.12'
-    implementation 'org.json:json:20230227'
+    implementation 'com.google.protobuf:protobuf-java:4.29.3'
+    implementation 'org.json:json:20231013'
 }
 
 jar {
     manifest {
         attributes(
-                'Main-Class': 'com.bytedance.rheatrace.processor.Main',
+                'Main-Class': 'com.bytedance.rheatrace.Main',
                 'Manifest-Version': version
         )
     }

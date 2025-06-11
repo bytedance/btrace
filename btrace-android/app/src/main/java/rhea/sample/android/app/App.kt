@@ -18,6 +18,7 @@ package rhea.sample.android.app
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.bytedance.rheatrace.RheaTrace3
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
@@ -27,6 +28,7 @@ class App : Application() {
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
+        RheaTrace3.init(base)
         initSdks()
         latch.await()
     }
@@ -77,6 +79,7 @@ class App : Application() {
     }
 
     private fun fibonacci(n: Int): Int {
+        RheaTrace3.captureStackTrace(false)
         if (n == 0) return 0
         return if (n == 1) 1 else fibonacci(n - 1) + fibonacci(n - 2)
     }

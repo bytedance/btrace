@@ -91,5 +91,3 @@ afterEvaluate { it ->
         sign configurations.archives
     }
 }
-
-tasks.getByName("uploadArchives").dependsOn tasks.getByName("checkstyle")
