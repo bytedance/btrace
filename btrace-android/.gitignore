@@ -1,0 +1,10 @@
+/build
+.gradle
+local.properties
+.idea
+**/.cxx
+**/*.pyc
+**/output
+*/.DS_Store
+.DS_Store
+scripts/python/rheatrace/.build

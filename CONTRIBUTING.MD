@@ -1,6 +1,6 @@
-# Contributing to RheaTrace
+# Contributing to btrace
 
-Welcome to the RheaTrace project. Read on to learn more about our development process and how to propose bug fixes and improvements.
+Welcome to the btrace project. Read on to learn more about our development process and how to propose bug fixes and improvements.
 
 ## Issues
 
@@ -23,7 +23,12 @@ There are 2 main branches:
 
     * It's our stable developing branch.
     * Once `dev` has passed our internal tests, it will be merged to `master` branch for the next release.
-    * **Please always submit PR on `dev` branch.**
+    * **Please always submit PR on `dev` branch for latest bug fixes and improvements.**
+
+3. `release/2.0` branch
+
+    * It's the legacy branch for the 2.0 release.
+    * If you have any bug fixes or improvements for the 2.0 release, please submit PR on this branch.
 
 
 ## Pull Requests
@@ -32,15 +37,13 @@ Please make sure the following is done when submitting a pull request:
 
 1. Fork the repo and create your branch from `master`.
 2. Add the copyright notice to the top of any new files you've added.
-3. Check your Java code lints and checkstyles.
-4. Try your best to test your code.
-5. Squash all of your commits into one meaningful commit.
+3. Try your best to test your code.
+4. Squash all of your commits into one meaningful commit.
 
 ## Code Style Guide
 
 1. 4 spaces for indentation rather than tabs.
-2. Follow this [checkstyle configuration](./checkstyle.xml) for Java code.
 
 ## License
 
-By contributing to RheaTrace, you agree that your contributions will be licensed under its [MIT LICENSE](LICENSE).
+By contributing to btrace, you agree that your contributions will be licensed under its [Apache LICENSE](LICENSE).

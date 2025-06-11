@@ -1,0 +1,11 @@
+include ':rhea-inhouse'
+include ':rhea-inhouse-noop'
+include ':rhea-trace-processor'
+
+include ':app'
+
+project(':rhea-inhouse').projectDir = new File("./rhea-library/rhea-inhouse")
+project(':rhea-inhouse-noop').projectDir = new File("./rhea-library/rhea-inhouse-noop")
+project(':rhea-trace-processor').projectDir = new File("./rhea-tool/rhea-trace-processor")
+
+rootProject.name = "RheaTrace"

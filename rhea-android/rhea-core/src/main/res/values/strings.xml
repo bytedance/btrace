@@ -1,8 +1,0 @@
-<resources>
-    <string name="app_name">RheaTracePlugin</string>
-    <string name="notification_txt_switch">start</string>
-    <string name="notification_txt_kill_app">kill-app</string>
-    <string name="notification_title">Welcome to rhea world!</string>
-    <string name="rhea_name">RheaTrace</string>
-
-</resources>

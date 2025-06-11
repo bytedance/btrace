@@ -1,476 +1,537 @@
-# 背景介绍
+[English](INTRODUCTION.MD)
 
-在一年多前，我们对外正式开源了 btrace（AKA RheaTrace），它是基于 Systrace 的高性能 Trace 工具，目前字节跳动已经有接近 20 个业务团队使用 btrace 做日常性能优化工作。在这一年期间，我们收到很多社区以及公司内部反馈，包括使用体验、性能体验、监控数据等上都收到众多反馈，我们汇总了大家反馈的内容，主要包括以下三类：
+# 背景说明
 
--   **使用体验**：桌面脚本依赖 Systrace 和 Python 2.7 环境，导致环境搭建十分复杂，此外手机端还依赖外部存储访问权限，在初次使用时很容易导致打断。同时产物体积庞大，网页打开速度很慢。
--   **性能体验**：大型应用插桩数量达到百万级别，性能损耗接近 100%，对性能优化工作产生一定困扰。
--   **监控数据**：在 Trace 分析过程中，有些信息是缺失的，并不知道耗时原因，比如目前 Trace 中仅包含 synchronized 锁信息，缺少 ReentrantLock 等其他锁信息，同时渲染监控只有部分系统关键路径的信息，缺少业务层关键信息。
+自 btrace 2.0 正式发布以来，已近两年时间。在此期间，我们收到了大量用户反馈，经总结，主要问题如下：
 
-同时，随着 Android 系统的不断发展，Google 逐渐废弃了 Systrace 工具，并开始大力推广 Perfetto 工具。此外，由于系统的 sdcard 权限限制变得更加严格，btrace 在高版本 Android 系统中已经出现兼容性问题。
+- **接入维护成本较高**：接入、使用及维护的成本均偏高，对用户的使用体验产生了影响。接入的插件配置较为复杂，编译期插桩致使构建耗时增加，接入后字节码插桩异常会导致无法正常编译，且问题原因难以排查。
+- **系统方法信息缺失**：编译期的字节码插桩方案仅能对打包至 apk 内的方法生效，无法对 android framework 等系统方法生效，导致所采集的 Trace 信息不够丰富，影响后续的性能分析。
 
-在此背景下，我们决定大幅改造 btrace，解决用户反馈最多、最集中的问题，同时适应 Google 发布的新特性，并修复兼容性问题，以便更好地满足开发者的需求，目前 btrace 2.0 在使用体验、性能体验、监控数据等方面均做出大量改进，重点改进如下。
+除 android 端团队针对 2.0 版本给出的反馈外，随着行业内双端合作愈发紧密，业界对于 iOS 相关能力的需求也十分迫切。然而，苹果官方所提供的 Trace 方案 Time profiler 存在以下局限： 
 
-1.  **使用体验：** 将脚本实现从 Python 切至 Java 并去除各种权限要求，因脚本工具可用性问题引起的用户使用打断次数几乎降为 0，同时还将 Trace 产物切至 PB 协议，产物体积减小 70%，网页打开速度提升 7 倍！
-1.  **性能体验：** 通过大规模改造方法 Trace 逻辑，将 App 方法 Trace 参数由字符串切换为整数且内存占用减少 80%，存储改为 mmap 方式、优化无锁队列逻辑、提供精准插桩策略等，全插桩场景下性能损耗进一步降低至 15%！
-1.  **监控数据：** 新增 4 项数据监控能力，重磅推出渲染详情采集能力！同时还新增 Binder、线程启动、Wait/Notify/Park/Unpark 等详情数据！
+- **使用成本居高**：Time profiler 的界面比较复杂，配套的说明文档数量较少，使用 Time profiler 定位问题时需要消耗很多精力。 
+- **应用灵活性低**：Time profiler 工具是一个黑盒，出现问题时无法排查，且无法自定义数据维度和数据展示方式。
+对此，为了持续提升用户使用体验、增强 Trace 信息丰富度、进一步降低性能损耗，以及对 iOS 端能力的支持，我们开启了全新的 Trace 方案的探索。
 
-接下来，我们将单独介绍上述三个改进方向的具体机制与实现原理，以帮助您深入了解 btrace 2.0 的重要升级。
+# 思路介绍
 
-# 原理揭秘
+实际上不难看出，btrace 目前存在的问题主要是由其使用的编译期字节码插桩方案引起的，因此为了解决目前存在的问题，我们重点探索了编译期插桩之外的 Trace 采集方案。
 
-## Perfetto 简介
+目前业界主流的 Trace 采集方案分为两种：代码插桩方案和采样抓栈方案。那么采样抓栈方案是否就是更合适的方案呢，我们对两种方案的优缺点做了简单的总结：
 
-Perfetto 和 Systrace 都是用于 Android 系统的性能分析和调试的工具，但它们有所不同：
+| | **代码插桩** | **采样抓栈** |
+|---|---|---|
+| **优点** | - 可以精确地捕获插桩函数的执行时间<br>- 可以收集更多的运行时数据，如内存分配、锁竞争等<br>- 插桩代码一定会被采集，可对特定的函数进行整体分析 | - 可以调整控制采样率控制对应用程序的性能影响<br>- 可以捕获应用程序在运行时的整体行为<br>- 无需修改应用程序的源代码 |
+| **缺点** | - 对应用程序的体积有较大负向影响<br>- 高频调用函数插桩后方法执行性能有较大影响<br>- 需要修改应用程序的代码或者产物，增加编译耗时<br>- 插桩代码编译时确定，发布后无法动态调整 | - 无法精确地捕获每个函数的执行时间，只能估算<br>- 无法收集堆栈外的运行时数据，如内存分配、锁竞争等<br>- 采样具有随机性，无法全局了解特定函数的整体情况 |
 
-**Systrace**：是 Android SDK 中的一个工具，可用于捕获和分析不同系统进程的时序事件，并提供了用于分析系统性能瓶颈的图形界面。Systrace 能够捕获的事件包括 CPU、内存、网络、磁盘I/O、渲染等等。Systrace 的工作原理是在内核和用户空间捕获和解析时序事件，并将其记录到 HTML 文件中，开发者可以使用 Chrome 浏览器来分析这些事件。Systrace 能够很好地帮助开发者找出系统瓶颈，但它在性能方面的表现并不理想，尤其是在处理大量数据时。
+从上述对比可以看出，两种方案各有优劣。采样抓栈方案可以追踪到系统方法的执行、可以动态开启或关闭、接入和维护成本也相对较低，但是它在 Trace 精度和性能上存在明显的不足，核心原因在于采样抓栈采用的是定期的异步抓栈流程。首先是每次抓栈都需要经历挂起线程、回溯方法栈、恢复线程三个阶段，这三个阶段都有着明显的性能损耗。其次后台线程的定时任务由于线程调度的原因，无法做到精准的调度，以及线程挂起时机的不确定性，导致抓栈的间隔至少都设置在 10 毫秒以上，trace 的精度无法保证。
 
-**Perfetto**：是一个新的、低开销的 Trace 采集工具，旨在优化 Systrace 的性能表现。Perfetto 的目标是提供比 Systrace 更快、更细粒度的 Trace 采集，并支持与其他跨平台工具集成。Perfetto 采用二进制格式记录 Trace 数据，并使用基于 ProtoBuf 的数据交换格式进行数据导出，可与 Grafana、SQLite、BigQuery 等其他分析和可视化工具集成。Perfetto 采集的数据种类非常广泛，包括 CPU 使用情况、网络字节流、触摸输入、渲染等等。与 Systrace 相比，Perfetto 在性能和可定制性方面更为出色。
+既然两种方案各有优劣，我们能否取长补短，将两种方案的优势融合呢？答案是肯定的，将异步抓栈改成直接在目标线程进行同步抓栈来免去线程挂起和恢复带来的性能损耗，再通过动态插桩提供的插桩点作为同步抓栈的驱动时机，最终就形成了 btrace 3.0 所采用的动态插桩和同步抓栈结合的 Trace 采集新方案。
 
-因此可以看出，Perfetto 是 Systrace 的一种更为先进和优秀的替代工具，它提供了更强大的数据采集和分析功能，更好的性能以及更好的可定制性，为开发人员提供更全面和深入的性能分析和调试工具。
+![](./assets/b/zh/arch_android.png)
 
-## 整体流程
+新方案将如何保证 Trace 的精度呢？这对应着动态插桩的插桩点选取策略，也即寻找同步抓栈的最佳时机。实际上只要保证插桩点在线程运行时能够被高频地执行到，我们就可以通过高频地同步抓栈来保证 Trace 的精度。另外还需要注意的是，插桩点的选取不仅要保证能够被高频地执行到，同时也要尽可能的分布在“叶子节点”所处的方法上。如下图所示，如果“叶子节点”方法上没有插桩点，那么最终生成的 Trace 就会存在信息丢失。如何实现快速同步抓栈、如何进行动态插桩以及具体选取哪些插桩点将在方案明细中介绍。
 
-首先我们了解下 Trace 采集的整体流程：
+![](./assets/b/zh/backtracing_beyond_leaf.png)
 
-![](assets/arch.png)
+值得一提的是，同步抓栈方案除了免去线程挂起和恢复的性能损耗以外，还可以在抓栈时记录当前线程的更多上下文信息，更进一步地结合了插桩与抓栈的双重优势，这方面也将在下文的方案中进行阐述。
 
-整个流程分为以下三个方向：
+然而，同步抓栈高度依赖桩点。若遇到极端情况，如方法逻辑本身不存在合适的桩点，或者线程被阻塞，便无法采集到相应的 Trace 信息。针对此问题，可通过异步抓栈进一步提高 Trace 的丰富度。特别是 iOS 系统，其自身具备极高的异步抓栈性能，适合在同步抓栈的基础上叠加异步抓栈功能，以进一步提升 Trace 的丰富度。 
 
-1.  **App 编译时：** 在应用程序编译阶段，我们提供了两种插桩模式：方法数字标识插桩和方法字符串标识插桩。方法 数字标识插桩适用于只需要记录方法名称的场景，而方法字符串标识插桩可以同时记录方法参数的值。此外，我们还支持精准插桩引擎，智能识别可疑耗时代码并进行插桩。
-1.  **App 运行时：** 在应用程序运行期间，主要工作是采集函数 apptrace 信息，对于方法数字标识类型的信息，通过 mmap 无锁队列方式采集；对于字符串标识类型的信息，直接通过系统函数写入 atrace，同时代理 atrace 写入逻辑，将其替换为 LFRB 高性能写入方案。
-1.  **桌面脚本：** 桌面脚本主要用于控制应用程序的运行和开启/关闭 Trace 采集功能。此外，桌面脚本还负责对采集到的 apptrace 与 atrace 数据进行编码，并将它们与 ftrace 进行合并。
+![](./assets/b/zh/arch_ios.png)
 
-## 技术揭秘
+# 方案明细
 
-### 使用体验
+接下来，我们将对双端的技术细节展开深入探讨。鉴于系统差异，双端的实现原理存在区别，以下将分别进行介绍。 
 
-使用体验问题在用户反馈中最多，分析下来基本是存储权限问题、Systrace 环境问题、Python 环境问题、产物体积与打开速度，这些体验问题我们完成了针对性的优化：
+## Android
 
-#### 1. 权限优化
+Android 端的 Trace 采集方案主要分为同步抓栈和动态插桩两部分，其中同步抓栈部分由于已经免去了线程挂起和恢复流程，所以只需要聚焦于如何实现快速的方法抓栈即可。
 
-为进行数据二次处理，桌面脚本需要访问到 App 数据。在 App 层面，最方便的方式是将数据存储到公共 SDCard 中。但从 Android Q 开始，Google 收紧对外置存储完全访问权限。尽管 requestLegacyExternalStorage 可以临时解决这个问题，但从长远来看，SDCard 将无法完全访问。
+### 快速抓栈
 
-为解决此问题，我们搭建 Http Server 来通过端口对外访问数据，但访问该 Server 仍需要确定服务地址，为此，我们使用 adb forward 功能，它可以建立一个转发，将 PC 端数据转发到手机端口，并且可以获取从手机端口返回的数据。这样，我们就可以使用 localhost 访问数据。
+Android Framework 本身提供的抓栈方式 Thread.getStackTrace 会在抓栈的同时解析方法符号，解析符号是比较耗时的操作。针对 Trace 采集需要高频率抓栈的场景，每次抓栈都解析方法符号显然是比较浪费性能的选择，尤其是多次抓栈里很可能会存在很多重复的方法符号解析。为了优化抓栈性能，我们选择在抓栈时仅保存方法的指针信息，待抓栈完成后，进行 Trace 数据上报时对指针去重后进行批量符号化，这样可以最大化节省解析符号的成本。
 
-以上解决了脚本读取 App 数据的问题，我们还面临 App 读取脚本参数问题，比如 maxAppTraceBufferSize、 mainThreadOnly，在 btrace 1.0 支持运行时通过 push 配置文件到指定目录进行动态调整，但这也需要 SDCard 访问权限，为彻底去除权限依赖，我们需要引入新方案。
+具体该如何实现快速抓栈且仅保存方法指针信息呢？在 Android 中 Java 方法的栈回溯主要依赖 ART 虚拟机内部的 [StackVisitor](https://cs.android.com/android/platform/superproject/+/master:art/runtime/stack.h) 类来实现的，大部分的快速抓栈方案都是围绕着创建 StackVisitor 的实现类对象并调用其 WalkStack（） 方法进行回溯来实现的，我们也是使用这种方案。只有少数方案如 Facebook 的 [profilo](https://github.com/facebookarchive/profilo) 是不依赖系统 StackVisitor 类自己实现的栈回溯，但是这种方案的兼容性较差且有较高的维护成本，目前随着 Android 版本的不断更新，profilo 官方已无力再对新版本进行更新适配了。
 
-首先想到的是 adb forward 反向方案：adb reverse，它可以将手机端口数据转发给 PC，实现了从手机到 PC 的访问，同样我们可以在脚本启动 HttpServer 来实现数据接收。但是，因为是网络请求意味着 App 读取参数只能在子线程进行，会有一定的不便，尤其在需要参数实时生效时。
+不过在使用系统的 StackVisitor 类进行栈回溯时我们也做了一些额外的版本适配方案的优化。具体来说是构造 StackVisitor 对象的方案优化，我们不假定 StackVisitor 类内成员变量的内存布局，而是定义了一个内存足够的 mSpaceHolder 字段来容纳 StackVisitor 对象的所有成员变量。
 
-我们又研究了新方案，在桌面脚本通过 adb setprop 给手机设置参数，App 通过 __system_property_get 来读取参数，只要是参数 property 名称以 debug. 开头，就无需任何权限。
-
-```
-// 桌面脚本设置参数
-Adb.call("shell", "setprop", "debug.rhea.startWhenAppLaunch", "1");
-
-// 手机运行时读取参数
-static jboolean JNI_startWhenAppLaunch(JNIEnv *env, jobject thiz) {
-    char value[PROP_VALUE_MAX];
-    __system_property_get("debug.rhea.startWhenAppLaunch", value);
-    return value[0] == '1';
-}
-```
-
-#### 2. 环境优化
-
-btrace 1.0 基于 Systrace 开发，对 Python 2.7 有强依赖，而 Python 2.7 已被官方废弃，同时大多数 Android 工程师对 Python 不太熟悉，浪费了大量时间解决环境问题。对此，我们计划将 Systrace 切换到 Perfetto ，并选择了 Android 工程师更熟悉的 Java 语言重写了脚本，用户只需有可用的 Java 和 adb 环境，即可轻松使用 btrace 2.0。
-
-#### 3. 产物优化
-
-btrace 1.0 产物是基于 Systrace 的 HTML 文本数据，常常遇到文本内容太大、加载速度过慢、甚至需要单独搭建服务来支持 Trace 显示的问题。Perfetto 是 Google 新推出的性能分析平台，支持多种数据格式解析，Systrace 格式是其中一种，同时 Perfetto 还支持 Protocol Buffer 格式，pb 是一种轻量级、高效的数据序列化格式，用于结构化数据存储和传输。Perfetto 使用 pb 作为其事件记录格式，保证记录系统事件数据的同时，保持数据的高效性和可伸缩性。pb 因为其结构化数据存储可以实现更小体积占用与更快解析速度。因此，btrace 2.0 也将数据格式由 HTML 切换到 pb，在减小产物文件体积的同时，还大幅提升 Trace 在网页上的加载速度。
-
-我们先简单介绍下 Perfetto 的 pb 数据格式，然后再介绍如何将采集到的 apptrace 与 atrace 编码为 pb 格式，以及如何将其与系统 ftrace 进行融合。
-
-Perfetto pb 是由一系列 TracePacket 组成，官方文档可以参考：https://perfetto.dev/docs/reference/trace-packet-proto，这里将介绍 btrace 使用到的一种 TracePacket：FtraceEventBundle：
-
-FtraceEventBundle 是 Android 用于收集系统 Trace 数据的一种机制。它由大量 FtraceEvent 组成，可以被用来记录各种系统行为，如调度、中断、内存管理和文件系统等。btrace 主要利用其中 PrintFtraceEvent 来记录方法 Trace 信息，具体使用方式可以参考下面简单示例：
-
-```
-int threadId = 10011;
-FtraceEventBundle.Builder bundle = FtraceEventBundle.newBuilder()
-        .addEvent(
-                FtraceEvent.newBuilder()
-                        .setPid(threadId) // 线程内核 pid，就是 tid
-                        .setTimestamp(System.nanoTime())
-                        .setPrint(
-                                Ftrace.PrintFtraceEvent.newBuilder()
-                                        // buf 格式是 B|$pid|$msg\n 这里 pid 是实际
-                                        // 进程 ID，`\n` 是必须项
-                                        .setBuf("B|10010|someEvent\n"))) 
-        .addEvent(
-                FtraceEvent.newBuilder()
-                        .setPid(threadId)
-                        .setTimestamp(System.nanoTime() + TimeUnit.SECONDS.toNanos(2))
-                        .setPrint(
-                                Ftrace.PrintFtraceEvent.newBuilder()
-                                        .setBuf("E|10010|\n")))
-        .setCpu(0);
-Trace trace = Trace.newBuilder()
-        .addPacket(
-                TracePacketOuterClass.TracePacket.newBuilder()
-                        .setFtraceEvents(bundle)).build();
-try (FileOutputStream out = new FileOutputStream("demo.pb")) {
-    trace.writeTo(out);
-}
-```
-
-上面示例将得到下面这个 Trace：
-
-![](assets/simple_pb.png)
-
-下面再介绍如何将运行时采集到的 apptrace 信息转换成 pb 格式的，这部分操作在桌面脚本进行。
-
-首先脚本通过 adb http 方式获取到手机上 mmap 映射文件，然后再解析文件内容：
-
-```
-// 读取 mapping，我们将 mapping 内置到了 apk 的 assets 目录
-Map<Integer, String> mapping = Mapping.get();
-// 开始解码并保存解码后的结果
-List<Frame> result = new ArrayList<>();
-byte[] bytes = FileUtils.readFileToByteArray(traceFile);
-ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-while (buffer.hasRemaining()) {
-    long a = buffer.getLong();
-    long b = buffer.getLong();
-    // 分别解析出 startTime / duration / tid / methodId
-    long startTime = a >>> 19;
-    long dur0 = a & 0x7FFFF;
-    long dur1 = (b >>> 38) & 0x3FFFFFF;
-    long dur = (dur0 << 26) + dur1;
-    int tid = (int) ((b >>> 23) & 0x7FFF);
-    int mid = (int) (b & 0x7FFFFF);
-    // 记录相应的开始与结束 Trace
-    result.add(new Frame(Frame.B, startTime, dur, pid, tid, mid, mapping));
-    result.add(new Frame(Frame.E, startTime, dur, pid, tid, mid, mapping));
-}
-// 排序
-result.sort(Comparator.comparingLong(frame -> frame.time));
-```
-
-之后再利用上文介绍的 FtraceEventBundle 对 List<Frame> 进行编码即可，这里不再展开。atrace 的处理方式也是类似的，也不再阐述。
-
-再介绍下如何将采集到的 apptrace、atrace 与系统 ftrace 进行合并。
-
-前文介绍过，Perfetto pb 是由一系列 TracePacket 组成，一般而言，我们只要将业务采集到的 Trace 分别封装成 TracePacket，然后加入到系统 TracePacket 集合中就完成了 Trace 的合并。
-
-```
-Trace.Builder systemTrace = Trace.parseFrom(systraceStream).toBuilder();
-FtraceEventBundle.Builder bundle = ...;
-for (int i = 0; i < events.size(); i++) {
-    bundle.addEvent(events.get(i).toEvent());
-}
-systemTrace.addPacket(TracePacket.newBuilder().setFtraceEvents(bundle).build());
-```
-
-然而，这里有一个前提，就是业务采集的 apptrace / atrace 时间戳与系统 frace 时间戳一致。实际上，根据实际测试的结果，不同设备 ftrace 时间戳可能会采用不同时间，可能是 BOOTTIME，也可能是 MONOTONIC TIME。这导致业务层无论使用哪种时间戳都只能兼容部分设备。为解决此问题，我们在开始记录 trace 信息时，先记录一份 BOOTTIME 和 MONOTONIC TIME 初始时间，之后再记录时间戳时，都统一使用 MONOTONIC 时间。
-
-最后在脚本中解析 ftrace 时间戳进行判断，如果与 MONOTONIC 接近，就采用 MONOTONIC；如果与 BOOTTIME 接近，就采用 BOOTTIME。虽然我们没有单独记录每个函数的 BOOTTIME，但是可以通过 MONOTONIC 与初始时间差异折算。
-
-```
-if (Math.abs(systemFtraceTime - monotonicTime) < Math.abs(systemFtraceTime - bootTime)) {
-    Log.d("System is monotonic time.");
-} else {
-    long diff = bootTime - monotonicTime;
-    Log.d("System is BootTime. time diff is " + diff);
-    for (Event e: events) {
-        e.time += diff;
-    }
-}
-```
-
-### 性能体验
-
-#### 1. 运行时优化
-
-btrace 1.0 在插桩上是严格依赖 Systrace 模式，通过在方法开始与结束插入 Trace.beginSection 与 endSection。但是 beginSection 参数是字符串，百万级别方法插桩会造成数百万字符串额外内存占用，对内存造成巨大压力，并且也导致数据 IO 持久化压力巨大。此外，字符串数据大小不可预测，只能通过有锁或者 LFRB 方式来记录数据，无法做到数据高效并发写入，只能将数据缓存在 buffer 中，但是过小 buffer 容易导致数据丢失，过大则会造成内存浪费。
-
-btrace 2.0 版本通过将方法 ID 数字化，将方法执行信息记录到一个 mmap 映射文件中。由于方法 ID 大小是已知的，可以使用 atomic 原子操作计算存储数据位置，从而实现无锁并发写入，同时方法数字存储占用内存更小，IO 持久化压力也更小。
-
-同时，我们发现 Trace.beginSection 和 endSection 方式，需要记录每个方法的开始与结束时间、线程 ID 与方法 ID，这里面的线程 ID 和方法 ID 会重复记录，也导致了内存浪费。于是专门进行了优化，在一条记录中同时记录开始时间、方法耗时、线程 ID 和方法 ID 信息，合计占用 2 个 long，可以充分利用内存。
-
-具体插桩逻辑可以参考伪代码：
-
-```
-// 业务代码
-public void appLogic() {
-    long begin = nativeTraceBegin();
-    // 业务逻辑
-    nativeTraceEnd(begin, 10010);
-}
-
-// 插桩逻辑
-long nativeTraceBegin() {
-    return nanoTime();
-}
-
-void nativeTraceEnd(long begin, int mid) {
-    long dur = nanoTime() - begin;
-    int tid = gettid();
-    write(begin, dur, tid, mid);
-}
-```
-
-方法耗时数据记录格式示例：
-
-![](assets/mmap_data_structure.png)
-
-方法插桩在 Java 层，但是数据采集基于 mmap 方式在 native 层实现。这会导致高频 JNI 调用，当一个非 JNI 方法调用常规 JNI 方法，以及从常规 JNI 方法返回时，需要做线程状态切换，线程状态切换就会涉及到 GC 锁操作，会有较大性能开销。
-
-熟悉 Android 系统的同学可能了解系统专门为高频 JNI 调用做的性能优化，通过 @CriticalNative 注解与 @FastNative 注解方式来实现，@FastNative 可以使原生方法的性能提升高达 2 倍，@CriticalNative 则可以提升高达4倍。
-
-我们也参考系统的方式，给方法添加 @CriticalNative 注解实现方法调用加速。但是 @CriticalNative 注解是隐藏 API无法直接使用，可以通过构建一个定义 CriticalNative 注解的 jar 包，在项目中通过 compileOnly 方式依赖，来达到使用 @CriticalNative 注解的目的。相关注解定义参考自源码：
-
-```
-// ref: https://cs.android.com/android/platform/superproject/+/master:libcore/dalvik/src/main/java/dalvik/annotation/optimization/CriticalNative.java;l=26?q=criticalnative&sq=
-@Retention(RetentionPolicy.CLASS)  // Save memory, don't instantiate as an object at runtime.
-@Target(ElementType.METHOD)
-public @interface CriticalNative {}
-```
-
-具体使用规则可以参考下面代码：
-
-```
-// Java 方法定义，必须是 static，不能用 synchronized，参数类型必须是基本类型
-@CriticalNative
-public static long nativeTraceBegin();
-
-// Critical JNI 方法，不再需要声明 JNIEnv 与 jclass 参数
-static jlong Binary_nativeTraceBegin() {
-    ...
-}
-
-// 动态绑定
-JNINativeMethod t = {"nativeTraceBegin", "(I)J",  (void *) JNI_CriticalTraceBegin};
-env->RegisterNatives(clazz, &t, 1);
-```
-
-@CriticalNative/@FastNative 是 8.0 及以后才支持的特性，对于 8.0 以前的设备，也可以通过在方法签名中加入`!`方式来开启 FastNative：
-
-```
-// Fast JNI 方法，和普通 JNI 方法一样需要 JNIEnv 参数与 jclass 参数
-static jlong Binary_nativeTraceBegin(JNIEnv *, jclass) {
-    ...
-}
-
-// 动态绑定
-JNINativeMethod t = {"nativeTraceBegin", "!(I)J",  (void *) Binary_nativeTraceBegin};
-env->RegisterNatives(clazz, &t, 1);
-```
-
-以上方法 ID 数字化采集优化的相关内容，前文产物优化专题已经介绍具体的数据解码和 mapping 映射的方案，这里不再赘述。
-
-虽然方法数字 ID 采集具有性能与内存的优势，但它也有一些限制，因为它只能记录在编译阶段准备的通过 ID 映射的内容，无法记录 App 运行时动态生成的内容。因此，除了方法 ID 的存储外，我们还支持字符串类型的数据存储，主要用于记录 btrace 细粒度监控数据和方法参数值。这一方案与 btrace 1.0 中的 LFRB 方案相似，这里就不再详细阐述。由于大部分 trace 数据都是方法 ID，已经被 mmap 分担了压力，因此 LFRB 的压力相比 btrace 1.0 小得多，我们可以适当减小 buffer 大小。
-
-#### 2. 精准插桩
-
-另一个性能优化是插桩优化。随着应用中方法数量越来越多，插桩方法数量也随之增多，久而久之插桩对应用性能损耗也会越大。btrace 1.0 通过提供 traceFilterFilePath 配置让用户来选择对哪些方法插桩，哪些不插桩，灵活配置的同时也把最终性能与插桩权衡的困扰转移给了用户。
-
-在 2.0 中，我们希望建立一套智能规则，可以精准识别用户关心的高耗时方法，同时将不耗时方法精准的排除在插桩规则以外，可以实现智能精准插桩体验。
-
-Android App 项目源码最终会编译为字节码，虽然 Android 虚拟机支持 200 多条字节码指令，但可能导致性能瓶颈的指令往往是比较少且易于枚举的，如 IO 读取、synchronized 字节码、反射、Gson 解析等函数调用等。我们在编译过程中将调用相关指令的方法视为疑似耗时方法，而剩余的非耗时函数则不进行插桩，因为它们不会导致性能问题，从而大大缩小了插桩范围。
-
-| 耗时特征      | 指令名                                                                         | 说明                                                                                                               |
-| --------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 锁         | monitorenter & monitorexit ；ACC_SYNCHRONIZED                                | Java 锁关键字                                                                                                        |
-| Native 方法 | ACC_NATIVE                                                                  | 因为 Native 方法通过字节码层面无法继续分析，因此我们认为 Native 都存在耗时可能；                                                                 |
-| 循环        | goto                                                                        | 循环关键字，依据实际情况决定是否加入“疑似耗时操作”名单                                                                                     |
-| 特殊方法调用    | InvokeVirtual； InvokeSpecial； InvokeStatic； InvokeInterface； InvokeDynamic； | 这里我们将特殊方法调用做归类，大分部来自 Android SDK 中； 1、IO 相关，文件操作、so 加载、dex 加载、字体加载等； 2、UI 相关，View 的布局、绘制等，动画相关； 3、IPC 相关，IPC 接口； |
-| 大方法       | InvokeVirtual； InvokeSpecial； InvokeStatic； InvokeInterface； InvokeDynamic； | 当一个方法中直接或间接调用的 invoke 字节码指令数超过阈值，可以认为该方法是一个CPU密集型操作方法，具有耗时可能性                                                    |
-
-以上述耗时特征为基础，我们设计了一条精细化插桩方案，方便用户可以根据具体的情况选择需要的插桩方法。支持的配置方案如下所示：
-
-```
-# 对锁相关的方法插桩
--tracesynchronize
-
-# 对Native方法的调用点插桩
--tracenative
-
-# 对Aidl方法插桩
--traceaidl
-
-# 对包含循环的方法插桩
--traceloop
-
-# 关闭默认耗时方法的调用插桩
--disabledefaultpreciseinstrumentation
-
-# 开启大方法插桩，方法效用数超过40
--tracelargemethod 40
-
-# 该方法的调用方需要进行插桩
--traceclassmethods rhea.sample.android.app.PreciseInstrumentationTest {
-   test
-}
-
-# 被该注解修饰的方法需要被插桩
--tracemethodannotation org.greenrobot.eventbus.Subscribe
-
-# 该Class的所有方法均会被插桩
--traceclass io.reactivex.internal.observers.LambdaObserver
-
-# 该方法的参数信息会在Trace中保留
--allowclassmethodswithparametervalues rhea.sample.android.app.RheaApplication {
-   printApplicationName(*java.lang.String);
-}
-```
-
-经过我们的精细化插桩后，抖音的插桩数量减少了 94%，在保留较完整的 Trace 数据的同时，性能有了显著的提升。
-
-总之，我们通过权衡耗时函数插桩的优点和缺点，这样可以帮助我们尽可能的获取到足够的耗时函数信息，同时避免过度插桩导致不必要的性能损耗。
-
-### 监控数据
-
-监控数据是 Trace 的核心，关系到 Trace 能否给用户带来实际价值，除了常规方法执行 Trace 以外，本次 2.0 还带来了渲染监控、Binder 监控、阻塞监控、线程创建监控等四大能力，下面将介绍相关背景与实现原理。
-
-#### 1. 渲染监控
-
-Android 系统提供提供 RenderThread 关键执行逻辑的跟踪埋点，但其提供的信息不够充分，无法直观分析是具体影响渲染问题的业务代码，下图是 atrace 中渲染线程 Trace 示例：
-
-![](assets/render_simple.png)
-
-为此，我们针对这部分信息进行更精细化拓展展示，新增记录渲染关键 View 节点，下图是优化后效果：
-
-![](assets/render_detail.png)
-
-渲染监控核心原理如下图：
-
-![](assets/render_principle.png)
-
-1. 代理 LayoutInflater 获取到 inflate 时 View 所属的布局信息，再通过 View 的 RenderNode 与 native 层 RenderNode关系，将 View 所属布局信息绑定到 RenderNode 的 name 字段上。
-2. Hook 渲染阶段的关键节点，比如 SyncFrameState 阶段的 RenderNode::prepareTreeImpl  方法和 RenderPipeline 阶段的 RenderNodeDrawable::forceDraw 方法，将 RenderNode 所属 View 的布局信息记录到 Trace 中。
-
-#### 2. Binder 监控
-
-原始 atrace 中 Binder 信息只有 binder transaction 信息，缺少具体 binder 接口与方法名称，对问题排查帮助有限。比如下图中我们无法得知具体是什么 Binder 调用。
-
-![](assets/binder_no_name.png)
-
-btrace 的 Binder 增强目标是将 Binder 调用的接口名称与方法名称进行解析与展示，实现效果如下：
-
-![](assets/binder_with_name.png)
-
-核心原理通过 plt hook `IPCThreadState::transact` 记录 binder 调用的 code 与 Parcel& data 参数中的 interfaceName.
-
-```
-status_t IPCThreadState::transact(int32_t handle, uint32_t code, const Parcel& data,
-                                  Parcel* reply, uint32_t flags);
-```
-
-但是 Parcel 结构是非公开，很难从 data 中解析出 interfaceName 信息，于是转变思路，通过 hook `Parcel::writeInterfaceToken` 来记录 interfaceName 与 Parcel 关联信息，随后再在 `IPCThreadState::transact` 中通过查询获取 interfaceName.
-
-```
-status_t Parcel::writeInterfaceToken(const char* interface) {
-    // 记录 this Parcel 与 interface 名称的关联
-}
-
-status_t IPCThreadState::transact(int32_t handle, uint32_t code, const Parcel& data,
-                                  Parcel* reply, uint32_t flags) {
-    // 查询 Parcel data 对应的 interface
-    // 记录 Trace
-    RHEA_ATRACE("binder transact[%s:%d]", name.c_str(), code);
-}
-```
-
-这就记录了以下信息，包含了 interfaceName 与 code：
-
-```
-binder transact[android.content.pm.IPackageManager:5]
-```
-
-此外，还需要将 code 解析到对应 Binder 调用方法。在 AIDL 中，interfaceName$Stub 类静态字段中记录了每个 code 与对应 Binder 调用名称。可以在抓取 trace 结束时，通过反射获取 code 与名称映射关系，将他保存到 Trace 产物中。
-
-```
-#android.os.IHintManager
-TRANSACTION_createHintSession:1
-TRANSACTION_getHintSessionPreferredRate:2
-#miui.security.ISecurityManager
-TRANSACTION_activityResume:27
-TRANSACTION_addAccessControlPass:6
-```
-
-最后通过桌面脚本进行处理，将运行时记录的 Trace 中 code 进行替换，替换为真实的方法名称即可。
-
-#### 3. 阻塞监控
-
-在系统 atrace 中提供了系统锁冲突 Trace 信息，比如通过下图可以得知主线程 Keva 在获取锁时与 16105 线程发生锁冲突，这给优化线程阻塞提供了重要的信息输入。
-
-![](assets/lock_locker_blocker.png)
-
-![](assets/lock_locker_owner.png)
-
-但是线程阻塞原因不只有锁冲突，还包含 wait/park 等原因导致的线程等待，btrace 阻塞监控就是提供这部分阻塞信息，下面是 wait/notify 关联示例，通过检索锁 obj 信息可以得知当前线程 wait 匹配的 notify 的位置：
-
-![](assets/lock_object_wait.png)
-
-![](assets/lock_object_notifyall.png)
-
-wait与 park 等待原理类似，这里以大家更熟悉的 wait/notify 组合进行说明。
-
-wait/notify 都是 Object 直接定义的方法，本质上都是 JNI 方法，可以通过 JNI hook 方式记录他们的调用。
-
-```
-public final native void wait(long timeoutMillis, int nanos) throws InterruptedException;
-public final native void notify();
-```
-
-在对应的 hook 方法中，通过 Trace 记录他们的执行与对应的 this（也就是锁对象）的 identityHashCode，这样可以通过 identityHashCode 建立起映射关系。
-
-```
-static void Object_waitJI(JNIEnv *env, jobject java_this, jlong ms, jint ns) {
-    ATRACE_FORMAT("Object#wait(obj:0x%x, timeout:%d)", Object_identityHashCodeNative(env, nullptr, java_this), ms);
-    Origin_waitJI(env, java_this, ms, ns);
-}
-
-static void Object_notify(JNIEnv *env, jobject java_this) {
-    ATRACE_FORMAT("Object#notify(obj:0x%x)", Object_identityHashCodeNative(env, nullptr, java_this));
-    Origin_notify(env, java_this);
-}
-```
-
-#### 4. 线程创建监控
-
-在分析 Trace 时可能会遇到一些异常的线程，这时候往往需要分析线程在什么地方被创建，但是在传统 Trace 中缺少这部分信息。
-
-于是 btrace 加入了线程创建监控数据，核心原理是对 pthread_create 进行代理，记录线程创建的同时，还记录被创建线程的 tid。但是在 pthread_create 调用完成时是无法得知被创建线程 ID 的，通过分析系统源码，发现 pthread_t 本质上是一个 pthread_internal_t 指针，而 pthread_internal_t 则记录着被创建线程的 ID.
-
-```
-// https://cs.android.com/android/platform/superproject/+/master:bionic/libc/bionic/pthread_internal.h
-struct pthread_internal_t {
-    struct pthread_internal_t *next;
-    struct pthread_internal_t *prev;
-    pid_t tid;
+``` C++
+class StackVisitor {
+...
+    [[maybe_unused]] virtual bool VisitFrame();
+    
+    // preserve for real StackVisitor's fields space
+    [[maybe_unused]] char mSpaceHolder[2048]; 
+...
 };
+```
 
-int pthread_create_proxy(pthread_t *thread, const pthread_attr_t *attr,
-                         void *(*start_routine)(void *), void *arg) {
-    BYTEHOOK_STACK_SCOPE();
-    int ret = BYTEHOOK_CALL_PREV(pthread_create_proxy,
-                                 thread, attr, start_routine, arg);
-    if (ret == 0) {
-        ATRACE_FORMAT("pthread_create tid=%lu", ((pthread_internal_t *) *thread)->tid);
-    }
-    return ret;
+然后交由 ART 提供的构造函数来妥善初始化 StackVisitor 对象，自动将预留的 mSpaceHolder 初始化成预期的数据，省去了对每个版本的对象内存布局适配工作。同时再将 StackVisitor 对象的虚函数表替换，最后实现类似继承自 StackVisitor 的效果。
+
+``` C++
+bool StackVisitor::innerVisitOnce(JavaStack &stack, void *thread, uint64_t *outTime,
+                                  uint64_t *outCpuTime) {
+    StackVisitor visitor(stack);
+
+    void *vptr = *reinterpret_cast<void **>(&visitor);
+    // art::Context::Create()
+    auto *context = sCreateContextCall();
+    // art::StackVisitor::StackVisitor(art::Thread*, art::Context*, art::StackVisitor::StackWalkKind, bool)
+    sConstructCall(reinterpret_cast<void *>(&visitor), thread, context, StackWalkKind::kIncludeInlinedFrames, false);
+    *reinterpret_cast<void **>(&visitor) = vptr;
+    // void art::StackVisitor::WalkStack<(art::StackVisitor::CountTransitions)0>(bool)
+    visitor.walk();
 }
 ```
 
-最终实现效果如图，比如发现 Thread 16125 是新创建的线程，需要分析其创建位置，替换为线程池实现。
+最后当调用 StackVisitor.walk 后，相关回调都将分发到我们自己的 VisitFrame，这样只需要再调用相关函数进行堆栈数据读取即可。
 
-![](assets/pthread_create_child.png)
+``` C++
+[[maybe_unused]] bool StackVisitor::VisitFrame() {
+    // art::StackVisitor::GetMethod() const
+    auto *method = sGetMethodCall(reinterpret_cast<void *>(this));
+    mStack.mStackMethods[mCurIndex] = uint64_t(method);
+    mCurIndex++;
+    return true;
+}
+```
 
-只需要检索 `pthread_create tid=16125`就能找到对应的创建堆栈。
+这种方案在性能和兼容性方面能同时得到保障，维护成本也低。
 
-![](assets/pthread_create_parent.png)
+### 动态插桩
+
+现在可以实现快速抓栈了，那么应该在什么时候抓栈呢？这就轮到动态插桩出场了，所谓的动态插桩是利用运行时的 Hook 工具对系统内部的方法进行 Hook 并插入同步抓栈的逻辑，目前主要使用到的 Hook 工具为 [ShadowHook](https://github.com/bytedance/android-inline-hook)。
+
+按照前文思路分析，对于动态插桩重点是高频且尽可能分布在“叶子节点”方法上。而在 Android 应用中 Java 对象的创建是虚拟机运行过程中除方法调用外最高频的操作，并且对象创建时的内存分配会调用任何业务逻辑，是整个方法执行的末端。于是，第一个理想的抓栈时机即是 Java 对象创建时的内存分配。
+
+Java 对象创建监控的核心是向虚拟机注册对象创建的监听器，这个能力虚拟机的 Heap 类已经提供有注册接口，但是通过该接口注册首先会暂停所有 Java 线程，这会存在很高的 ANR 风险，为此我们借鉴了公司内部开发的 Java 对象创建方案，实现了实时的 Java 对象创建监控能力，具体实现原理请移步查看仓库源码，这里不作详细介绍。
+
+注册完 AllocationListener 后将在每次对象分配时收到回调：
+
+``` C++
+class MyAllocationListener : AllocationListener {
+    ...
+    void ObjectAllocated(void *self, void **obj, size_t byte_count) override {
+        // do backtracing here
+    }
+};
+```
+
+因为对象分配十分高频，如果每次都进行抓栈会有很大的性能损耗。一方面大批量的抓栈开销累计会有很大的性能成本，另一方面如此存储大规模的抓栈数据也是棘手的问题。
+
+为控制抓栈数量以减少性能损耗，首先可考虑的方法是控频：通过对比连续两次内存回调的间隔时间，仅当该时间间隔大于阈值时才再次进行抓栈操作。 
+
+``` C++
+thread_local uint64_t lastNano = 0;
+
+bool SamplingCollector::request(SamplingType type, void *self, bool force, bool captureAtEnd, uint64_t beginNano, uint64_t beginCpuNano, std::function<void(SamplingRecord&)> fn) {
+    auto currentNano = rheatrace::current_time_nanos();
+    if (force || currentNano - lastNano > threadCaptureInterval) {
+        lastNano = currentNano;
+        ...
+        if (StackVisitor::visitOnce(r.mStack, self)) {
+            collector->write(r);
+            return true;
+        }
+    }
+    return false;
+}
+```
+
+除了内存分配以外，还可以通过丰富其他抓栈的时机来提升两次抓栈的时间密度，提升数据的效果。比如 JNI 方法调用、获取锁、Object.wait、Unsafe.park 等节点。这些叶子节点可以主要分为两大类：高频执行与阻塞执行。
+
+高频执行是很好的进行主动抓栈的时间点，记录下当前执行的堆栈即可，比如前面介绍的内存分配、JNI 调用等。
+
+阻塞执行即可能处于阻塞的状态等待满足条件后继续执行，对于此类节点，除了对应的执行堆栈外，还预期记录当前方法阻塞的耗时。可以在方法即将执行时记录开始执行时间，在方法结束时进行抓栈并记录结束时间。
+
+这里以获取锁的的场景为例，获取锁最终会走到 Native 层的 MonitorEnter，可以通过 shadowhook 来代理该函数的执行：
+
+``` C++
+void Monitor_Lock(void* monitor, void* threadSelf) {
+    SHADOWHOOK_STACK_SCOPE();
+    rheatrace::ScopeSampling a(rheatrace::stack::SamplingType::kMonitor, threadSelf);
+    SHADOWHOOK_CALL_PREV(Monitor_Lock, monitor, threadSelf);
+}
+
+class ScopeSampling {
+private:
+    uint64_t beginNano_;
+    uint64_t beginCpuNano_;
+public:
+    ScopeSampling(SamplingType type, void *self = nullptr, bool force = false) : type_(type), self_(self), force_(force) {
+        beginNano_ = rheatrace::current_time_nanos();
+        beginCpuNano_ = rheatrace::thread_cpu_time_nanos();
+    }
+
+    ~ScopeSampling() {
+        SamplingCollector::request(type_, self_, force_, true, beginNano_, beginCpuNano_);
+    }
+};
+```
+
+通过封装的 ScopeSampling 对象，可以在 Monitor_Lock 函数执行时记录方法的开始时间，待方法结束时记录结束时间的同时并进行抓栈。这样整个锁冲突的堆栈以及获取锁的耗时都会被完整的记录下来。
+
+除了锁冲突以外，像 Object.wait、Unsafe.park、GC 等阻塞类型的耗时，都可以通过这样的方法同时记录执行堆栈与耗时信息。
+
+至此 Android 端的核心原理基本完成介绍，欢迎移步源码进一步了解。
+
+## iOS
+
+下面来看 iOS 的原理，正如前文所述，iOS 具备高性能的异步抓栈方案，因此 iOS 端采用同步与异步结合采样的 Trace 采集方案：
+
+- 同步抓栈：选定一批方法进行 hook，当这些方法被执行时，同步采集当前线程的 Trace 数据。
+- 异步抓栈：当线程超过一定时间未被采集数据时，由独立的采样线程暂停线程，异步采集 Trace 数据然后恢复线程，以确保数据的时间连续性。
+
+### 同步采集
+
+同步采集模式在性能和数据丰富度方面都有一定优势。在同步采集模式下，我们遇到并解决了一些有挑战的问题：
+
+- 选择同步采集点
+- 减少存储占用
+- 多线程数据写入性能
+
+#### 选择同步采集点
+
+**同步采集点的选取方法**
+
+可能的选取方法有：
+
+- 依靠 RD 同学的经验，但是存在不可持续性。
+- 通过代码插桩，但是需要重新编译 app，其次无法获取到系统库方法，容易存在遗漏。
+
+我们推荐检查 iOS app 高频系统调用，因为系统调用足够底层且对于 app 来说必不可少。可以在模拟器上运行 app，然后使用如下命令查看 app 运行时的系统调用使用情况：
+
+```Bash
+# 关闭sip
+# 终端登录root账号
+dtruss -c -p pid # -c表示统计系统调用的次数；
+```
+
+通过实际分析可知， iOS app 高频系统调用可以大致分为这几类：内存分配、I/O、锁、时间戳读取，如下所示：
+
+``` YAML
+名称                          次数
+ulock_wake                   15346  # unfair lock, unlock
+ulock_wait2                  15283  # unfair lock, lock
+pread                        10758  # io
+psynch_cvwait                10360  # pthread条件变量,等待
+read                         9963   # io
+fcntl                        8403   # io
+mprotect                     8247   # memory
+mmap                         8225   # memory
+gettimeofday                 7531   # 时间戳
+psynch_cvsignal              6862   # pthread条件变量，发送信号
+writev                       6048   # io
+read_nocancel                4892   # io
+fstat64                      4817   # io
+pwrite                       3646   # io
+write_nocancel               3446   # io
+close                        2850   # io
+getsockopt                   2818   # 网络
+stat64                       2811   # io
+pselect                      2457   # io多路复用
+psynch_mutexwait             1923   # mutex, lock
+psynch_mutexdrop             1918   # mutex, unlock
+psynch_cvbroad               1826   # pthread条件变量，发送广播信号
+```
+
+#### 减小存储占用
+
+所采集的 Trace 数据中占用存储空间（内存和磁盘）最大的就是调用栈数据。调用栈具有时间和空间相似性，我们可以利用这些相似性来大幅压缩调用栈所占用的空间。
+
+**空间相似性**
+
+可以观察到，调用栈中越靠近上层的方法越容易是相同的，比如主线程的调用栈都以 main 方法开始。因此，我们可以将不同调用栈中相同层级的同名方法只存储一份来节省存储空间。我们设计了 CallstackTable 结构来存储调用栈：
+
+``` C++
+class CallstackTable
+{
+public:
+    struct Node
+    {
+        uint64_t parent;
+        uint64_t address;
+    };
+    
+    struct NodeHash {
+        size_t operator()(const Node* node) const {
+            size_t h = std::hash<uint64_t>{}(node->parent);
+            h ^= std::hash<uint64_t>{}(node->address);
+            return h;
+        }
+    };
+    
+    struct NodeEqual
+    {
+        bool operator()(const Node* node1, const Node* node2) const noexcept
+        {
+            bool result = (node1->parent == node2->parent) && (node1->address == node2->address);
+            return result;
+        }
+    };
+
+    using CallStackSet = hash_set<Node *, NodeHash, NodeEqual>;
+private:
+    CallStackSet stack_set_;
+};
+```
+
+ 以下图为例介绍如何高效存储调用栈。
+
+![](./assets/b/zh/ios_storage_opt_1.png)
+
+1. 样本 1 的`A`方法没有父方法，因此存储为 Node（0， A），并记录 Node 的地址为 NodeA
+2. 样本 1 的`B`方法的父方法为`A`，因此存储为 Node（NodeA， B），并记录 Node 的地址为 NodeB
+3. 样本 1 的`C`方法的父方法为`B`，因此存储为 Node（NodeB， C），并记录 Node 的地址为 NodeC
+4. 样本 2 的`A`方法对应的 Node 为 Node（0， A），已经存储过，不再重复存储
+5. 样本 2 的`B`方法和`C`方法同理不再重复存储
+6. 样本 3 的`A`方法不再重复存储
+7. 样本 3 的`E`方法存储为 Node（NodeA， E）
+8. 样本 3 的`C`方法存储为 Node（NodeE， C）
+
+**时间相似性**
+
+App 中很多方法的执行时间都远大于我们的采集间隔，因此连续一段时间内采集到的调用栈很有可能是相同的。我们可以把相邻相同调用栈的记录进行合并，只存储开始和结束两条记录，就可以极大程度上减少存储空间占用。
+
+![](./assets/b/zh/ios_storage_opt_2.png)
+
+以上图为例进行说明，如果以 1ms 的间隔进行数据采集，而 A->B->C->D 栈执行了 100ms，那么就会采集到 100 条记录，由于这 100 条记录对应的是相同的栈，我们可以只记录开始和结束两条记录，从而大幅压缩存储占用。
+
+#### 多线程数据写入
+
+同步采集方案中，存在多线程同时写入数据到 buffer 的情况，必须对多线程写入进行处理，保证数据不异常。
+
+一般通过加锁来保证数据安全，但是性能比较差。而 CAS 操作可以显著优于加锁，但是 lock-free 不等于 wait-free，也会有偶发性性能问题。还可以使用 Thread Local Buffer 的方案，其最大的优势是完全避免线程间冲突性能最优，但是容易造成内存浪费，需要仔细考虑内存复用机制。我们摒弃了以上传统方案，而是将单个 buffer 拆分为多个 sub buffer，将线程的每次写入操作根据线程 ID 和写入大小分配到各个 sub buffer，类似哈希机制来提升写入的并发度。
+
+![](./assets/b/zh/ios_multithread_buffer.png)
+
+### 异步采集
+
+异步抓栈方案相对成熟，Apple 官方的 Time Profiler 以及开源的 ETTrace 等项目均采用了该方案。抖音 iOS btrace 初版同样运用了异步抓栈方案。异步抓栈方案不可避免地需要先暂停线程执行，接着采集数据，最后恢复线程执行。此过程易出现死锁与性能问题，我们也对此进行了针对性处理。 
+
+#### 防止死锁
+
+当访问某些系统方法时，采集线程与被采集线程可能同时持有相同的锁。例如，在同时调用 malloc 进行内存分配时，可能会触发 malloc 内部的锁。当代码以如下方式被触发时，将会导致死锁：
+
+1. 被采样线程调用 malloc 并首先获取锁；
+2. 被采样线程被采样线程暂停执行；
+3. 采样线程调用 malloc 并尝试获取锁，但是永远等不到锁释放。
+
+最终，采样线程会陷入永久性的等待锁状态，被采样线程则会发生永久性暂停。 
+
+![](./assets/b/zh/ios_deadlock.png)
+
+针对此类问题也没有特别好的处理办法，目前是通过一些约定禁止在采样线程在挂起被采样线程期间调用危险 api，类似于信号安全函数，具体已知的函数如下：
+
+- ObjC 方法，因为 OC 方法动态派发时可能会持有内部锁
+- 打印文本（printf 家族，NSlog 等）
+- 堆内存分配（malloc 等）
+- pthread 部分 api
+
+#### 性能优化
+
+**过滤非活跃线程**
+
+抖音这种大型 App 在运行过程中会创建数量非常多的线程，如果每次采样都采集所有线程的数据，性能开销是无法接受的。同时，也没有必要每次都采集所有线程的数据，因为绝大多数线程在大部分时间里都在休眠，只有当事件发生时线程才会唤醒并处理执行任务，因此可以只采集活跃状态的线程的数据，同时，对长时间未被采集数据的线程强制采集一次数据。
+
+``` C++
+bool active(uint64_t thread_id) 
+{
+    mach_msg_type_number_t thread_info_count = THREAD_BASIC_INFO_COUNT;
+    kern_return_t res = thread_info(thread_id, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(info), &thread_info_count);
+    if (unlikely((res != KERN_SUCCESS)))
+    {
+        return false;
+    }
+
+    return (info.run_state == TH_STATE_RUNNING && (info.flags & TH_FLAGS_IDLE) == 0);
+}
+```
+
+**高效栈回溯**
+
+异步回溯线程的调用栈时，为了防止读取到非法指针中的数据导致 app 崩溃，通常会使用系统库提供的 api vm_read_overwrite来读取数据，使用该 api 读取到非法指针的数据时会得到一个错误标识而不会导致 app 崩溃。虽然vm_read_overwrite已经足够高效（耗时在微秒级别），但其耗时相比于直接读指针的耗时仍然高了数十倍。而且 app 的调用栈通常都有数十层，因此vm_read_overwrite的高耗时问题会被放大。我们在回溯调用栈之前已经将线程暂停了，理论上线程的调用栈不会发生变化，所有的指针都应该是合法的，然而经过实际验证，直接读指针确实会读取到非法指针从而造成 app 崩溃。通过阅读暂停线程的 api thread_suspend的说明文档，以及分析崩溃日志，我们发现在一些情况下线程会继续运行（如线程正在执行退出时的清理动作）。
+
+``` sql
+The thread_suspend function increments the suspend count for target_thread and prevents the thread from executing any more user-level instructions.
+
+In this context, a user-level instruction can be either a machine instruction executed in user mode or a system trap instruction, including a page fault. If a thread is currently executing within a system trap, the kernel code may continue to execute until it reaches the system return code or it may suspend within the kernel code. In either case, the system trap returns when the thread resumes.
+```
+
+最终，我们使用如下措施来尽可能使用直接读指针的方式以提升栈回溯的性能：
+
+- 不采集正在退出的线程的数据
+- 暂停线程后，再次确认线程运行状态，若线程已经暂停直接读指针进行栈回溯
+- 否则兜底使用系统 api vm_read_overwrite 保证安全异步回溯调用栈
+
+## Trace 生成
+
+在介绍完双端的技术实现细节之后，接下来我们将关注 Trace 可视化部分。
+
+在 Trace 可视化方面，双端都依旧选择了基于 perfetto 进行数据展示。具体逻辑与 Android 官方提供的 Debug.startMethodTracingSampling 的实现方案相似，此处以 Android 为例进行简要介绍，iOS 的实现情况大体一致。 
+
+基本思路是对比连续抓取的栈信息之间的差异，找出从栈顶到栈底的第一个不同的函数。将前序堆栈中该不同的函数出栈，把后序堆栈中该不同的函数入栈，入栈和出栈的时间间隔即为该函数的执行耗时。以下是代码示例：
+
+``` Java
+// 生成一个虚拟的 Root 节点，待完成解析后，Root 的子树便构成了 Trace 的森林
+CallNode root = CallNode.makeRoot();
+Stack<CallNode> stack = new Stack<>();
+stack.push(root);
+...
+for (int i = 0; i < stackList.size(); i++) {
+    StackItem curStackItem = stackList.get(i);
+    nanoTime = curStackItem.nanoTime;
+    // 第一个堆栈全部入栈
+    if (i == 0) {
+        for (String name : curStackItem.stackTrace) {
+            stack.push(new CallNode(curStackItem.tid, name, nanoTime, stack.peek()));
+        }
+    } else {
+        // 当前堆栈与前一个堆栈对比，自顶向下，找到第一个不同的函数
+        StackItem preStackItem = stackList.get(i - 1);
+        int preIndex = 0;
+        int curIndex = 0;
+        while (preIndex < preStackItem.size() && curIndex < curStackItem.size()) {
+            if (preStackItem.getPtr(preIndex) != curStackItem.getPtr(curIndex)) {
+                break;
+            }
+            preIndex++;
+            curIndex++;
+        }
+        // 前一个堆栈中不同的函数全部出栈
+        for (; preIndex < preStackItem.size(); preIndex++) {
+            stack.pop().end(nanoTime);
+        }
+        // 当前堆栈中不同的函数全部入栈
+        for (; curIndex < curStackItem.size(); curIndex++) {
+            String name = curStackItem.get(curIndex);
+            stack.push(new CallNode(curStackItem.tid, name, nanoTime, stack.peek()));
+        }
+    }
+}
+// 遗留在栈中的函数全部出栈
+while (!stack.isEmpty()) {
+    stack.pop().end(nanoTime);
+}
+```
+
+敏锐的读者或许已经察觉到，由于采用的是采样抓栈方式，因此可能出现多次抓栈时堆栈完全相同，但这些情况可能并非源自同一次代码执行的情形。以下图为例：
+
+![](./assets/stacktraces_abnormal.png)
+
+有 3 次不同的执行堆栈，但是由于采样的原因，仅 1 和 3 被采样抓栈。按照上面的规则生成 Trace，那么 B 和 C 的方法耗时都会被放大，包含了方法 D 的耗时。
+
+很遗憾，对于此类情况无法彻底解决掉，但是可以针对特定的问题进行规避。比如针对消息执行的场景，可以设计一个消息 ID 用于标记消息，每次执行 nativePollOnce 后消息 ID 自增，在每次抓栈时同时记录消息 ID。这样就算多次抓栈结果一致，但是只要消息 ID 不一样，依然可以识别出来从而在解析 Trace 时结束方法。
+
+最后我们再看下数据效果，下面是 btrace demo 在启动阶段的 Trace 数据，可以看到丰富度和细节上相比于 2.0 有了明显的提升。
+
+![Android 效果图](./assets/sample_trace_android.png "Android 效果图")
+
+![iOS 效果图](./assets/sample_trace_ios.png "iOS 效果图")
+
+## 耗时归因数据
+
+除基本的方法执行 Trace 外，不仅要了解方法的耗时情况，还需明确方法产生耗时的原因。为此，我们需要进一步剖析方法的耗时原因，深入分析 WallTime 的具体去向，例如在 CPU 执行上花费了多少时间、有多少时间处于阻塞状态等信息。得益于整体方案的设计，我们在每次进行栈抓取时采集包含 WallTime 在内的额外信息，从而能够轻松实现函数级的数据统计。 这部分数据采集的原理在双端是类似的，篇幅有限，这里仅以 Android 为例展开介绍。
+
+![](./assets/b/zh/timeconsuming_reason_classification.png)
+
+### CPUTime
+
+CPUTime 是最基础的耗时归因数据，可以直观体现当前函数是在执行 CPU 密集型任务，还是在等待资源。
+实现方式很简单，就是在每次抓栈时通过下面的方式获取下当前线程的 CPUTime：
+
+``` C++
+static uint64_t thread_cpu_time_nanos() {
+    struct timespec t;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
+    return t.tv_sec * 1000000000LL + t.tv_nsec;
+}
+```
+
+![Android 效果图](./assets/sample_trace_cpu_android.png "Android 效果图")
+
+![iOS 效果图](./assets/sample_trace_cpu_ios.png "iOS 效果图")
+
+### 对象分配次数与大小
+
+我们已借助对象分配的接口进行栈捕获，但并非每次对象分配时都会进行栈捕获，这会致使直接通过该接口采集的数据为抽样结果，无法真实反映对象分配所需的内存大小。实际上，我们只需在对象分配接口中做好数据统计，随后在每次进行栈捕获时（无论由何种断点触发），记录当前的线程级对象分配情况，与获取线程的 CPU 时间的操作方式相同即可。
+
+``` C++
+thread_local rheatrace::JavaObjectStat::ObjectStat stats;
+
+void rheatrace::JavaObjectStat::onObjectAllocated(size_t b) {
+    stats.objects++;
+    stats.bytes += b;
+}
+```
+
+![Android 效果图](./assets/sample_trace_mem_android.png "Android 效果图")
+
+![iOS 效果图](./assets/sample_trace_mem_ios.png "iOS 效果图")
+
+### 缺页次数、上下文切换次数
+
+和 CPUTime 类似，可以通过 getrusage 来读取线程级别的缺页次数、上下文切换次数的信息。
+
+``` C++
+struct rusage ru;
+if (getrusage(RUSAGE_THREAD, &ru) == 0) {
+    r.mMajFlt = ru.ru_majflt;
+    r.mNvCsw = ru.ru_nvcsw;
+    r.mNivCsw = ru.ru_nivcsw;
+}
+```
+
+![效果图](./assets/sample_trace_pf_cs.png "效果图")
+
+### 线程阻塞归因
+
+以主线程为例，线程阻塞归因是监控到主线程阻塞的时长，以及对应的唤醒线程。目前阻塞归因已经包含 synchronized 锁、Object.wait、Unsafe.park 3 中原因导致的线程阻塞。通过 hook 对应的函数（hook 方案可以参考过往文章：[重要升级！btrace 2.0 技术原理大揭秘](https://mp.weixin.qq.com/s/WZ5JxCFv_FSOLqR-sRremA)）来记录主线程的阻塞时长，同时 hook 释放锁等操作，如果释放的锁是当前主线程正在等待的锁，那么就在释放锁时强制抓栈，且记录下当前释放的目标线程的 ID 用来关联阻塞与释放的关系。基本原理可以参考下面：
+
+``` C++
+static void *currentMainMonitor = nullptr;
+static uint64_t currentMainNano = 0;
+
+void *Monitor_MonitorEnter(void *self, void *obj, bool trylock) {
+    SHADOWHOOK_STACK_SCOPE();
+    if (rheatrace::isMainThread()) {
+        rheatrace::ScopeSampling a(rheatrace::SamplingType::kMonitor, self);
+        currentMainMonitor = obj; // 记录当前阻塞的锁
+        currentMainNano = a.beginNano_;
+        void *result = SHADOWHOOK_CALL_PREV(Monitor_MonitorEnter, self, obj, trylock);
+        currentMainMonitor = nullptr; // 锁已经拿到，这里重置
+        return result;
+    }
+    ...
+}
+
+bool Monitor_MonitorExit(void *self, void *obj) {
+    SHADOWHOOK_STACK_SCOPE();
+    if (!rheatrace::isMainThread()) {
+        if (currentMainMonitor == obj) { // 当前释放的锁正式主线程等待的锁
+           rheatrace::SamplingCollector::request(rheatrace::SamplingType::kUnlock, self, true, true, currentMainNano); // 强制抓栈，并通过 currentMainNano 和主线程建立联系
+            ALOGX("Monitor_MonitorExit wakeup main lock %ld", currentMainNano);
+        }
+    }
+    return SHADOWHOOK_CALL_PREV(Monitor_MonitorExit, self, obj);
+}
+```
+
+1. 主线程等锁，提示 wakeupby: 30657
+
+![](./assets/sample_trace_block_waiter.png)
+
+2. 轻松定位到 30657 线程相关代码：
+
+![](./assets/sample_trace_block_waker.png)
 
 # 总结展望
 
-以上介绍了 btrace 2.0 的主要优化点，更多优化还需要在日常使用中去体会。2.0 不是终点，是新征程的起点，我们还将围绕下面几点持续优化，将 btrace 优化到极致：
+以上主要阐述了 btrace 3.0 采用了将动态插桩与同步抓栈相结合的新型 Trace 方案。该新型方案在使用体验和灵活性方面对 btrace 进行了一定程度的优化。后续，我们将持续对 Trace 能力、拓展 Trace 采集场景以及生态建设进行迭代与优化，具体内容如下：
 
-1.  使用体验：深入优化使用体验，比如支持不定长时间 Trace 采集，优化采集耗时。
-1.  性能体验：持续探索性能优化，正面与侧面优化双结合，提供更加极致性能体验。
-1.  监控数据：在 Java 与 ART 虚拟机基础之上，建设包括内存、C/C++、JavaScript 等更多更全的监控能力。
-1.  使用场景：提供线上场景接入与使用方案，帮助解决线上疑难问题。
-1.  生态建设：围绕 btrace 2.0 建设完善生态，通过性能诊断与性能防劣化，自动发现存量与增量性能问题。
-
-最后，欢迎大家深入讨论与交流，一起协作构建极致 btrace 工具！
-
-![](assets/btrace-lark.png)
+1. Trace 能力：在 Android 系统中支持 Native 层的 C/C++ Trace；在双端均提供 GPU 等渲染层面的 Trace 信息。
+2. 使用场景：提供线上场景的 Trace 采集能力接入与使用方案，以助力发现并解决线上性能问题。
+3. 生态建设：围绕 btrace 工具构建自动性能诊断能力。
+4. 提升性能和稳定性：工具的性能和稳定性优化工作永无止境，仍需进一步追求极致。 
+5. 多端能力：在 Android、iOS 的基础上，新增鸿蒙系统的支持，同时增加 Web 等跨平台的 Trace 能力。

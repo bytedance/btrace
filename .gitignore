@@ -6,5 +6,4 @@ local.properties
 **/*.pyc
 **/output
 */.DS_Store
-.DS_Store:
-scripts/python/rheatrace/.build
+.DS_Store
