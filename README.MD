@@ -1,126 +1,198 @@
 # btrace
 
-[README 中文版](./README.zh-CN.md)
-
 ![](https://img.shields.io/badge/license-Apache-brightgreen.svg?style=flat)
 ![](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
-![](https://img.shields.io/badge/release-2.0.0-red.svg?style=flat)
+![](https://img.shields.io/badge/release-3.0.0-red.svg?style=flat)
+
+[README 中文版](./README.zh-CN.md)
+
+[btrace for Android](#btrace-for-android)
+
+[btrace for iOS](#btrace-for-ios)
 
 
 ## Major Update
-1. **User Experience:** We now support Windows! No more dependency on Python 2.7 and storage permissions! The scripting language has been changed to Java reducing the interruption caused by the usability issue of the scripting tool to almost zero! And we've switched to the PB protocol for trace artifacts, resulting in a 70% reduction in storage needs and a 7x speed boost when opening trace files.
-2. **Performance Experience:** Rewriting the method Trace collection logic, switching data from strings to integers, reducing memory usage by 80%. Data storage is changed to mmap mode, optimizing lock-free queue logic, providing accurate instrumentation strategies, and further reducing performance loss to 15% under millions of methods instrumentation!
-3. **Monitoring Data:** Adding 4 new data monitoring capabilities, including detailed data on Rendering, Binder, thread creation, and Wait/Notify/Park/Unpark!
 
-## Integration
-### Project Configuration
+We are proud to announce the launch of btrace 3.0, introducing an industry-first high-performance synchronized sampling-based tracing solution. Additionally, the new version now provides comprehensive iOS tracing capabilities.
 
-Add rhea-gradle-plugin as a dependency in the build.gradle file in the root directory of your project:
+## btrace for Android
 
-``` js
-buildscript {
-    dependencies {
-        classpath 'com.bytedance.btrace:rhea-gradle-plugin:2.0.3-rc02'
+### Integration
+
+Add dependencies in app/build.gradle file:
+
+``` groovy
+dependencies {
+    if (enable_btrace == 'true') {
+        implementation 'com.bytedance.btrace:rhea-inhouse:3.0.0'
+    } else {
+        implementation 'com.bytedance.btrace:rhea-inhouse-noop:3.0.0'
     }
 }
 ```
 
-Then, apply the following plugins and dependencies to the app/build.gradle file.
+Add `enable_btrace` switch in the gradle.properties file:
 
-``` js
-dependencies {
-    // rheatrace core lib
-    implementation "com.bytedance.btrace:rhea-core:2.0.3-rc02"
-}
-...
-apply plugin: 'com.bytedance.rhea-trace'
-...
-rheaTrace {
-   compilation {
-      traceFilterFilePath = "${project.rootDir}/trace-filter/traceFilter.txt"
-      needPackageWithMethodMap = true
-      applyMethodMappingFilePath = ""
-   }
-}
+```
+# Turn on this switch when you want to build app that support tracing.
+enable_btrace=false
 ```
 
-### Plugin Configuration
+Add initialization code in `attachBaseContext()` method of your Application:
 
-RheaTrace 2.0 simplifies the compilation plugin configutation, requiring only a compilation configuration to control the behavior during compilation. The runtime configuration in RheaTrace 1.0 is deprecated, but to ensure compatibility when upgrading, we still keep the runtime parameter configuration, even though it does not affect behavior. Instead, in RheaTrace 2.0, dynamic configuration is achieved through command-line arguments in the script, which will be described in detail later.
+``` java
 
-|Parameter| Default Value |Description|
-|---|---------------|---|
-|traceFilterFilePath| null          |This file determines which methods need to be instrumented, and its usage is consistent with RheaTrace 1.0. Please refer to：[RheaTrace Gradle Plugin Configuration](GRADLE_CONFIG.MD)|
-|applyMethodMappingFilePath| null          |The method ID of the device can be specified by specifying the methodMapping.txt file path output from the last compilation to ensure that the method IDs of multiple compilations are consistent.|
-|needPackageWithMethodMap| true          |Whether to package the methodMapping.txt file inside the apk.|
+public class MyApp extends Application {
 
-## Usage
-To use RheaTrace 2.0, follow these instructions:
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        // When rhea-inhouse-noop is used, RheaTrace3.init() has empty implementation.
+        RheaTrace3.init(base);
+    }
+}
 
-1. Ensure that your computer has integrated adb and Java environment.
-2. Connect your phone to your computer and ensure it is recognized by adb devices.
-3. Install the APK that integrates RheaTrace 2.0 on your phone.
+```
+
+### Usage
+
+To use btrace 3.0, follow these instructions:
+
+1. Make sure that your computer has integrated adb and Java and Python3 environment.
+2. Connect your phone to your computer and make sure it can recognized by adb devices.
+3. Install the APK that integrates btrace 3.0 on your phone.
 4. Download the latest script from "Script Management" below to your computer.
-5. In the directory where the computer script is located, execute the following command.
+5. In the directory where the computer script is located, execute the following command:
+
 ```shell
-java -jar rhea-trace-shell.jar -a ${your app package name} -t 10 -o output.pb -r rhea.all sched -fullClassName
+java -jar rhea-trace-shell.jar -a ${your_package_name} -t 10 -o output.pb -r sched
 ```
-6. The trace artifact can be analyzed by https://ui.perfetto.dev/ for analysis.
 
-### Script Management
-|Version|Release Date|Download|Release Notes|
-|---|---|---|---|
-|2.0.0|2023-06-24|[rhea-trace-shell-2.0.0.jar](https://oss.sonatype.org/service/local/repositories/releases/content/com/bytedance/btrace/rhea-trace-processor/2.0.0/rhea-trace-processor-2.0.0.jar)|2.0.0 first release|
+6. Open the generated trace file in https://ui.perfetto.dev/ for detailed analysis.
 
-### Parameter Description
-The following table describes the parameters for RheaTrace 2.0 command-line arguments:
+#### Script Management
+| Version | Release Date       | jar                             | Release Notes |
+| ---|------------|--------------------------------| ---|
+| 3.0.0 | 2025-06-10 | [rhea-trace-shell-3.0.0.jar](https://oss.sonatype.org/service/local/repositories/releases/content/com/bytedance/btrace/rhea-trace-processor/3.0.0/rhea-trace-processor-3.0.0.jar) | 3.0 first release | 
 
-#### Required Parameters
+#### Parameters Description
 
 
-|Parameter|Default Value|Description|
+##### Required Parameters
+
+| Parameter | Default Value | Description |
 |---|---|---|
-| -a $applicationName|N/A||Specifies the package name of your app|
+| -a $applicationName|N/A|Specifies the package name of your app|
 
-#### Optional Parameters
+##### 可选参数
 
-|Parameter|Default Value|Description|
+| Parameter | Default Value | Description |
 |---|---|---|
-| -o $outputPath|N/A|Specifies the path where the trace artifact is saved. By default, the value is autogenerated based on the timestamp.|
-| -t $timeInSecond|5|Specifies the duration of the tracing period, in seconds.|
-|-mode $mode|By device|Specifies the tracing mode. Two modes are currently supported:1. perfetto: The default mode for systems 8.1 and above, allowing trace collection for your application functions as well as system atrace and ftrace.2. simple: The default mode for systems below 8.1, allowing trace collection for your application functions as well as system atrace.
-|-maxAppTraceBufferSize $size|500000000|Specifies the buffer size used during trace collection, in bytes. Generally, this parameter does not need to be configured unless you encounter a prompt similar to the following:MaxAppTraceBufferSize is too small. Expected 100515704 Actual 100000000. Add -maxAppTraceBufferSize 100515704 to your commandNote: maxAppTraceBufferSize only takes effect during the first trace after App startup.|
-|-threshold $ns|0|Specifies the function time threshold during trace collection, in nanoseconds. This parameter can reduce the size of the tracing artifact when the tracing period is long.|
-|-s $serial||Specifies the device connected by adb.|
-|-mainThreadOnly|N/A|Only traces the main thread.|
-|-r||Automatically restarts the app to capture the startup trace.|
-|-fullClassName||Enabling the package name for trace information.|
-|-deeplink $deeplink|N/A|Specifies the deeplink.|
-|rhea.binder||Enables binder information enhancement.|
-|rhea.render||Enables rendering monitoring capabilities.|
-|rhea.io||Enables I/O monitoring capabilities.|
-|rhea.thread||Enables thread creation monitoring capabilities.|
-|rhea.block||Enables park/unpark/wait/notify monitoring functions.|
-|rhea.all||Enables all of the above RheaTrace enhanced monitoring capabilities. |
-|-debug||Prints debugging logs.|
-|--list||Displays a list of supported categories for the device.||
+| -o $outputPath | ${applicationName}_yyyy_MM_dd_HH_mm_ss.pb | Specifies the path where the trace artifact is saved. By default, the value is autogenerated based on the tracing app package name and current timestamp. |
+| -t $timeInSecond | 5 | Specifies the duration of the tracing, in seconds.<br>Note that: On MacOS, interactive tracing mode will be activated if you don't specifying the tracing duration. On windows, tracing dration must be specified, because we don't support interactive tracing mode on Windows currently. |
+| -m $mappingPath | | Specifies the mapping file path for the abofuscated app.<br>Note that: it's not the methodMapping file that was used in btrace 2.0, but the mapping file generated by proguard. There is no methodMapping file in btrace 3.0. |
+| -mode $mode | Decided at runtime. | btrace currently support two kinds of modes: <ol><li>perfetto: The default mode for systems 8.1 and above, allowing collecting  system atrace and ftrace using perfetto service besides the app trace.</li> <li>simple: The default mode for systems below 8.1, allowin collecting app trace only.</li></ol> |
+|-maxAppTraceBufferSize $size | 200000 | Specifies the maximum  count of stacktraces that our buffer allows to save, previously saved stacktraces will be overwritten if the maximum limit is met. |
+| -sampleInterval $ns | 1000000 | Specifies the minimum sampling backtracing interval in nanoseconds. |
+| -waitTraceTimeout | 20 | Specifies the timeout seconds for waiting for tracing data writing to complete and being pulled to the PC. |
+| -s $serial | | Specifies the device connected by adb. |
+| -r |  | Automatically restarts the app to tracing the start up stage. |
+| --list || Displays a list of supported atrace categories for the device. |
+
+
+### Known Issues
+
+| | Problems | Advices | 
+| -- | --- | --- | 
+| 1 | We currently only support devices running Android 8.0 or higher. | Please use devices with Android 8.0 or higher. |
+| 2 | Java object allocation monitoring is not yet adapted for devices with Android 15 and above. | If you need to inspect object memory allocation information or require more detailed tracing, please use devices with Android versions below 15. |
+| 3 | Devices that do not support Perfetto (mostly systems before 8.1) cannot collect system information such as CPU scheduling. | Try with -mode simple. |
+| 4 | 32-bit devices or applications cannot collect tracing data. | Please install and use 64-bit applications on 64-bit devices. | 
+
+## btrace for iOS
+
+Record trace data offline without Instruments to help find performance issue of your app.
+
+### Installation
+
+Clone source code, and add the following lines to your Podfile:
+
+```ruby
+pod 'BTrace', :path => 'xxx/btrace-iOS'
+pod 'BTraceDebug', :path => 'xxx/btrace-iOS'
+```
+
+Install command line tool:
+
+```bash
+# using homebrew
+brew install libusbmuxd
+brew install poetry
+# install from the BTraceTool directory
+poetry install
+```
+
+### Usage
+
+#### Record
+
+Note that if '-l' is not specified, app must have been launched before recording.
+
+```bash
+python3 -m btrace record [-h] [-i DEVICE_ID] [-b BUNDLE_ID] [-o OUTPUT] [-t TIME_LIMIT] [-d DSYM_PATH] [-m] [-l] [-s]
+```
+##### Options
+| Option | Description          |
+|---------------------------------------| -----------  |
+| -h, --help                | Show help      |
+| -i DEVICE_ID, --device_id DEVICE_ID |  Device id. If not specified: <br>· If only one device is connected to Mac, it will be chosen <br>· If multiple devices are connected to Mac, prompt the user to make a selection |
+| -b BUNDLE_ID    --bundle_id BUNDLE_ID |  Bundle id |
+| -o OUTPUT       --output OUTPUT | Output path. If not specified, data will be saved to '~/Desktop/btrace'|
+| -t TIME_LIMIT   --time_limit TIME_LIMIT | Limit recording time, default 3600s |
+| -d DSYM_PATH    --dsym_path DSYM_PATH |  Dsym file path, or app path built by Xcode in debug mode. If specified，flamegraph will be displayed automatically after the recording ends |
+| -m    --main_thread_only |  If given, only record main thread trace data |
+| -l    --launch  |  If given, app will be launched/relaunched, and start recording on app launch|
+| -s    --sys_symbol  |  If given, symbols in the system libraries will be parsed |
+##### Examples
+```bash
+python3 -m btrace record -i xxx -b xxx -d /xxxDebug-iphoneos/xxx.app
+python3 -m btrace record -i xxx -b xxx -d /xxxDebug-iphoneos/xxx.dSYM
+```
+
+#### Stop
+```bash
+ctrl + c
+```
+
+#### Parse
+
+When should the 'parse' command used?
+- '-d' option is not specified in the 'record' command.
+- reopen the parsed data
+
+```bash
+python3 -m btrace parse [-h] [-d DSYM_PATH] [-f] [-s] file_path
+```
+##### Options
+| Option                       | Description          |
+|---------------------------------------| -----------  |
+| -h, --help                | Show help      |
+| -d DSYM_PATH, --dsym_path DSYM_PATH |  Dsym file path, or app path built by Xcode in debug mode |
+| -s, --sys_symbol  |  If given, symbols in the system libraries will be parsed |
+| -f, --force  |  If given, force re-parsing trace data |
+##### Examples
+```bash
+btrace parse -d /xxx.dSYM xxx.sqlite
+btrace parse -d /xxx.app xxx.sqlite
+```
 
 ## Technology Principle
-If you are interested in the internal details of RheaTrace 2.0, you can refer to the document: [RheaTrace 2.0 Internal Principle in Detail!](INTRODUCTION.MD) . 
-
-## Known Issues
-|No.| Problems                                                                                                                                                                                                                                                                                                      | Advice                                                                                                                                                                                                                                                                                      |
-|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|1| Some custom ROMs may encounter failures in Perfetto trace acquisition, and the error message is as follows:               <blockquote>Error: systrace file not found:rheatrace.workspace/systemTrace.trace<br/> Tips: your device may not support perfetto. please retry with `-mode simple`. </blockquote>  | 1. Try restarting the phone and try again.2. If the problem is not solved, retry with  -mode simple.                                                                                                                                                                                        |
-|2| Devices that do not support Perfetto (mostly systems before 8.1) cannot collect system information such as CPU scheduling.                                                                                                                                                                                    | Try with -mode simple.                                                                                                                                                                                                                                                                      |
-|3 | If you're using a 32-bit APK, it can cause crashes due to out-of-memory errors.                                                                                                                                                                                                                               | To fix this, you can either switch to a 64-bit package, or if you have to use 32-bit, try reducing the virtual memory usage by lowering the bufferSize and configuring the method collection threshold. This will allow you to collect longer traces without using too much virtual memory. | 
-|4 | If you're having issues with circular dependencies because methodMapping is built into the APK and depends on mergeAssets                                                                                                                                                                                     | You can turn off the built-in methodMapping function. You can do this by setting needPackageWithMethodMap to false in the Gradle plugin configuration. However, if you need to use the btrace function, you'll have to manually provide the path of the methodMapping using the -m option.  |
-
+If you are interested in the internal details of btrace 3.0, you can refer to the document: [btrace 3.0 Internal Principle in Detail!](INTRODUCTION.MD) . 
 
 ## Feedback
-We've made a lot of improvements in RheaTrace 2.0, including better error prompts. There might still be some cases where the prompts aren't accurate enough or the messages aren't clear. If you run into any issues, just give us a shout in the Lark group below, and we'll do our best to help you out. We always appreciate any other feedback or suggestions you might have too, thanks you!
+We've made a lot of improvements in btrace 3.0, including better error prompts. There might still be some cases where the prompts aren't accurate enough or the messages aren't clear. If you run into any issues, just give us a shout in the Lark group below, and we'll do our best to help you out. We always appreciate any other feedback or suggestions you might have too, thanks you!
 
-![](./assets/btrace-lark.png)
+![](./assets/b/en/lark.png)
 
 ## Contributes
 
