@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "btrace"
+version = "0.8.1"
+description = ""
+authors = ["bytedance"]
+readme = "README.md"
+exclude = [
+    "btrace/com.ss.iphone.ugc.AwemeInhouse"
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+argparse = "^1.4.0"
+pick = "^2.4.0"
+requests = "^2.32.3"
+sortedcontainers = "^2.4.0"
+protobuf = "^5.29.1"
+macholib = "^1.16.3"
+lief = "^0.15.1"
+
+[tool.poetry.scripts]
+btrace = "btrace.cli:main"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
