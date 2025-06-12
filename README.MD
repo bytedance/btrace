@@ -84,7 +84,7 @@ java -jar rhea-trace-shell.jar -a ${your_package_name} -t 10 -o output.pb -r sch
 |---|---|---|
 | -a $applicationName|N/A|Specifies the package name of your app|
 
-##### 可选参数
+##### Optional Parameters
 
 | Parameter | Default Value | Description |
 |---|---|---|
