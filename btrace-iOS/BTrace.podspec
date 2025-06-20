@@ -31,6 +31,8 @@ TODO: Add long description of the pod here.
   s.ios.deployment_target = '12.0'
   s.default_subspecs = 'BTrace'
   
+  s.ios.library = 'sqlite3'
+  
   # BTrace
   s.subspec 'BTrace' do |ss|
     ss.source_files = 'BTrace/Classes/**/*.{h,hpp,c,cc,m,mm,cpp}'

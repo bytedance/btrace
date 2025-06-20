@@ -117,6 +117,10 @@ Clone 代码，并将 btrace 添加到 Podfile 中:
 ```ruby
 pod 'BTrace', :path => 'xxx/btrace-iOS'
 pod 'BTraceDebug', :path => 'xxx/btrace-iOS'
+
+# 解决iOS14.5之后系统运行崩溃的问题
+pod 'fishhook', :git => 'https://github.com/facebook/fishhook.git', :branch => 'main'
+
 ```
 
 安装命令行工具：
@@ -137,6 +141,9 @@ poetry install
 
 ```bash
 python3 -m btrace record [-h] [-i DEVICE_ID] [-b BUNDLE_ID] [-o OUTPUT] [-t TIME_LIMIT] [-d DSYM_PATH] [-m] [-l] [-s]
+
+# 如果python有多个版本，执行上面命令失败，可以尝试用下面的
+poetry run python3 -m btrace record [-h] [-i DEVICE_ID] [-b BUNDLE_ID] [-o OUTPUT] [-t TIME_LIMIT] [-d DSYM_PATH] [-m] [-l] [-s]
 ```
 ##### Options
 | 选项 | 描述          |
