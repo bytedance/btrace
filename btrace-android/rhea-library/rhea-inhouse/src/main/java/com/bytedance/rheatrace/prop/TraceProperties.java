@@ -44,7 +44,8 @@ public class TraceProperties {
             return DEFAULT_WAIT_TRACE_TIMEOUT_SECONDS;
         }
         try {
-            return Integer.parseInt(timeoutStr);
+            int timeout = Integer.parseInt(timeoutStr);
+            return timeout > 0 ? timeout : DEFAULT_WAIT_TRACE_TIMEOUT_SECONDS;
         } catch (Exception e) {
             return DEFAULT_WAIT_TRACE_TIMEOUT_SECONDS;
         }

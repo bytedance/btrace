@@ -19,9 +19,7 @@ import android.util.Log;
 
 import com.bytedance.rheatrace.TraceManager;
 import com.bytedance.rheatrace.prop.TraceProperties;
-import com.bytedance.rheatrace.trace.TraceConfigurations;
 import com.bytedance.rheatrace.trace.base.TraceMeta;
-import com.bytedance.rheatrace.trace.sampling.SamplingConfig;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -43,12 +41,11 @@ public final class HttpServer {
     }
 
     public static void start(File externalFileDir, String hostDirPath) {
-        int waitTraceTimeoutSeconds = TraceProperties.getWaitTraceTimeoutSeconds();
         if (server != null && server.isAlive()) {
             Log.i(TAG, "stop previous server on port " + server.getListeningPort());
             server.stop();
         }
-        server = new Server(new File(hostDirPath), waitTraceTimeoutSeconds);
+        server = new Server(new File(hostDirPath));
         try {
             server.start();
             int port = server.getListeningPort();
@@ -78,15 +75,13 @@ public final class HttpServer {
     public static class Server extends NanoHTTPD {
 
         private final File hostDir;
-        private final int waitTraceTimeoutSeconds;
         private boolean dataFlushFinished = false;
         private String error = null;
         private JSONObject traceDebugInfo = null;
 
-        public Server(File hostDir, int waitTraceTimeoutSeconds) {
+        public Server(File hostDir) {
             super(0);
             this.hostDir = hostDir;
-            this.waitTraceTimeoutSeconds = waitTraceTimeoutSeconds;
         }
 
         @Override
@@ -191,6 +186,7 @@ public final class HttpServer {
         }
 
         private boolean waitForDataReady() {
+            int waitTraceTimeoutSeconds = TraceProperties.getWaitTraceTimeoutSeconds();
             for (int i = 0; i < waitTraceTimeoutSeconds; i++) {
                 if (dataFlushFinished) {
                     return true;
