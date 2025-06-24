@@ -82,18 +82,17 @@ public class RheaATrace {
         BinaryTrace.init(new File(externalDir, "rhea-atrace.bin"));
         BlockTrace.init();
         int resultCode = nativeStart(externalDir.getAbsolutePath());
+        if (resultCode != 1) {
+            Log.d(TAG, "failed to start rhea-trace, errno: " + resultCode);
+            return false;
+        }
         if (nativeRenderCategoryEnabled()) {
             RenderTracer.onTraceStart();
         }
-        if (resultCode != 1) {
-            Log.d(TAG, "failed to start rhea-trace, errno: " + resultCode);
-        } else {
-            if (TraceEnableTagsHelper.updateEnableTags()) {
-                started = true;
-                return true;
-            }
-        }
-        return false;
+//        TraceEnableTagsHelper.updateEnableTags();
+        started = true;
+        Log.d(TAG, "trace started");
+        return true;
     }
 
     @MainThread
@@ -106,18 +105,16 @@ public class RheaATrace {
         int resultCode = nativeStop();
         if (resultCode != 1) {
             Log.d(TAG, "failed to stop rhea-trace, errno: " + resultCode);
-        } else {
-            try {
-                writeBinderInterfaceTokens();
-            } catch (IOException e) {
-                Log.e(TAG, "failed to write binder interface tokens", e);
-            }
-            if (TraceEnableTagsHelper.updateEnableTags()) {
-                started = false;
-                return true;
-            }
+            return false;
         }
-        return false;
+        try {
+            writeBinderInterfaceTokens();
+        } catch (IOException e) {
+            Log.e(TAG, "failed to write binder interface tokens", e);
+        }
+        TraceEnableTagsHelper.updateEnableTags();
+        started = false;
+        return true;
     }
 
     private static void writeBinderInterfaceTokens() throws IOException {
