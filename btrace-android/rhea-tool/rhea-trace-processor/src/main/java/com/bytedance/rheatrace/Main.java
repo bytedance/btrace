@@ -30,6 +30,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
@@ -249,9 +250,14 @@ public class Main {
     }
 
     private static String getActivityLauncher() throws IOException, InterruptedException {
+        if (arg.launcher != null) {
+            return arg.launcher;
+        }
         try {
             String launcher = getActivityLauncherPrecise();
-            if (launcher != null) {
+            // App that has multiple launcher icons may return a XXXResolverActivity.
+            // That is not the real launcher, so we need to check it here.
+            if (launcher != null && !launcher.contains("ResolverActivity")) {
                 return launcher;
             }
         } catch (Exception e) {
@@ -283,13 +289,14 @@ public class Main {
 
     private static String getActivityLauncherBackup() throws IOException, InterruptedException {
         String dump = Adb.callString("shell", "dumpsys", "package", arg.appName);
-        String launcher = null;
         StringTokenizer tokenizer = new StringTokenizer(dump, "\n");
         boolean actionMatch = false;
         boolean categoryMatch = false;
+        ArrayList<String> launchers = new ArrayList<>();
         while (tokenizer.hasMoreTokens()) {
             String next = tokenizer.nextToken();
             if (next.trim().equals("android.intent.action.MAIN:")) {
+                String launcher = null;
                 while (tokenizer.hasMoreTokens()) {
                     String line = tokenizer.nextToken().trim();
                     // 5f3565c rhea.sample.android/.app.MainActivity filter 413fd65
@@ -299,19 +306,38 @@ public class Main {
                         actionMatch = actionMatch || line.equals("Action: \"android.intent.action.MAIN\"");
                     } else if (line.startsWith("Category: ")) {
                         categoryMatch = categoryMatch || line.equals("Category: \"android.intent.category.LAUNCHER\"");
-                    } else if (actionMatch && categoryMatch) {
-                        return launcher;
                     } else {
-                        int first = line.indexOf(" ");
-                        int second = line.indexOf(" ", first + 1);
-                        if (first > 0 && second > 0) {
-                            launcher = line.substring(first, second);
+                        if (launcher == null) {
+                            int first = line.indexOf(" ");
+                            int second = line.indexOf(" ", first + 1);
+                            if (first > 0 && second > 0) {
+                                launcher = line.substring(first + 1, second);
+                            }
+                        } else if (actionMatch && categoryMatch) {
+                            launchers.add(launcher);
+                            launcher = null;
+                            actionMatch = false;
+                            categoryMatch = false;
+                        } else {
+                            break;
                         }
-                        actionMatch = false;
-                        categoryMatch = false;
                     }
                 }
             }
+        }
+        if (!launchers.isEmpty()) {
+            if (launchers.size() > 1) {
+                StringBuilder launcherTips = new StringBuilder();
+                launcherTips.append("\nMultiple launcher activities found: \n");
+                for (String launcher : launchers) {
+                    launcherTips.append("  " ).append(launcher).append("\n");
+                }
+                launcherTips.append("Choose the first one as the current launcher (")
+                        .append(launchers.get(0))
+                        .append("), or you can pass the specific launcher activity by `-launcher` argument.");
+                Log.red(launcherTips.toString());
+            }
+            return launchers.get(0);
         }
         // try with old version format
         // Activity Resolver Table:

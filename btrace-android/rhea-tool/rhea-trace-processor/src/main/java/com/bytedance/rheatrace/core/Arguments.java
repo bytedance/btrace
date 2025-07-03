@@ -53,9 +53,9 @@ public class Arguments {
     public final Long sampleIntervalNs;
     public final String outputPath;
     public final String mappingPath;
+    public final String launcher;
     public String cmdLine;
 
-    public final boolean keepAtrace;
 
     public final int waitTraceTimeout;
 
@@ -89,8 +89,8 @@ public class Arguments {
         mappingPath = Parser.mappingPath;
         outputPath = Parser.outputPath;
         port = Parser.port;
-        keepAtrace = Parser.keepAtrace;
         waitTraceTimeout = Parser.waitTraceTimeout;
+        launcher = Parser.launcher;
     }
 
     private static class Parser {
@@ -104,7 +104,7 @@ public class Arguments {
         private static int maxAppTraceBufferSize = 0;
         private static String outputPath;
         private static String mappingPath;
-        private static boolean keepAtrace = false;
+        private static String launcher = null;
         private static int waitTraceTimeout = 20;
         private static TcpPort port = new TcpPort() {
             @Override
@@ -205,13 +205,16 @@ public class Arguments {
                     case "-waitTraceTimeout":
                         waitTraceTimeout = Integer.parseInt(args[i++]);
                         break;
+                    case "-launcher":
+                        launcher = args[i++];
+                        break;
                     default:
                         break;
                 }
             }
             List<String> result = new ArrayList<>();
             i = 0;
-            List<String> oneValueArgNames = Arrays.asList("-m", "-mode", "-maxAppTraceBufferSize", "-port", "-sampleInterval", "-waitTraceTimeout");
+            List<String> oneValueArgNames = Arrays.asList("-m", "-mode", "-maxAppTraceBufferSize", "-port", "-sampleInterval", "-waitTraceTimeout", "-launcher");
             List<String> noneValueArgNames = Arrays.asList("-debug", "-r", "-w");
             while (i < args.length) {
                 String cur = args[i++].trim();
