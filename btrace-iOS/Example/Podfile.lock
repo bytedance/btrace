@@ -1,13 +1,9 @@
 PODS:
-  - BTrace (0.1.0):
-    - BTrace/BTrace (= 0.1.0)
-  - BTrace/BTrace (0.1.0):
+  - BTrace/Core (0.1.0):
     - fishhook
     - Stinger
-  - BTraceDebug (1.0.0):
-    - BTraceDebug/Debug (= 1.0.0)
-  - BTraceDebug/Debug (1.0.0):
-    - BTrace
+  - BTrace/Debug (0.1.0):
+    - BTrace/Core
     - GCDWebServer/Core
   - fishhook (0.2)
   - GCDWebServer/Core (3.5.4)
@@ -19,8 +15,8 @@ PODS:
   - Stinger/libffi (1.0.0)
 
 DEPENDENCIES:
-  - BTrace (from `../`)
-  - BTraceDebug (from `../`)
+  - BTrace/Core (from `../`)
+  - BTrace/Debug (from `../`)
   - fishhook (from `https://github.com/facebook/fishhook.git`, branch `main`)
 
 SPEC REPOS:
@@ -30,8 +26,6 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   BTrace:
-    :path: "../"
-  BTraceDebug:
     :path: "../"
   fishhook:
     :branch: main
@@ -43,12 +37,11 @@ CHECKOUT OPTIONS:
     :git: https://github.com/facebook/fishhook.git
 
 SPEC CHECKSUMS:
-  BTrace: 14df9789d4d68be9592fb99e3b49b2e4d65c3ae8
-  BTraceDebug: 29cf5dddadf39ebd943169efe0d7d2ab5f123e5f
+  BTrace: d1650e7a4cbb00f267f4f28c5d223047b5f07399
   fishhook: ea19933abfe8f2f52c55fd8b6e2718467d3ebc89
   GCDWebServer: 2c156a56c8226e2d5c0c3f208a3621ccffbe3ce4
   Stinger: 65d5a5749cb487d35676a2e8bba63a4239b6ccc3
 
-PODFILE CHECKSUM: 4e18787e425b27d158fbda1ee2377dec32308424
+PODFILE CHECKSUM: 6d933357a76b62cca60dcf6f2d055b33a0e73ebe
 
 COCOAPODS: 1.15.2

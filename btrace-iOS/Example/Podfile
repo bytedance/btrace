@@ -2,8 +2,7 @@ platform :ios, '12.0'
 
 target 'BTrace_Example' do
   pod 'fishhook', :git => 'https://github.com/facebook/fishhook.git', :branch => 'main'
-  pod 'BTrace', :path => '../'
-  pod 'BTraceDebug', :path => '../'
+  pod 'BTrace', :subspecs => ['Core', 'Debug'], :path => '../'
 
   target 'BTrace_Tests' do
     inherit! :search_paths
