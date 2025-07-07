@@ -38,6 +38,6 @@ TODO: Add long description of the pod here.
     ss.pod_target_xcconfig = { 'CLANG_CXX_LANGUAGE_STANDARD' => 'gnu++17' }
     ss.dependency 'fishhook'
     ss.dependency 'Stinger'
-    ss.library = 'sqlite3'
+    ss.library = 'z', 'sqlite3'
   end
 end
