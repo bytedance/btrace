@@ -115,8 +115,7 @@ java -jar rhea-trace-shell.jar -a ${your_package_name} -t 10 -o output.pb -r sch
 Clone 代码，并将 btrace 添加到 Podfile 中:
 
 ```ruby
-pod 'BTrace', :path => 'xxx/btrace-iOS'
-pod 'BTraceDebug', :path => 'xxx/btrace-iOS'
+pod 'BTrace', :subspecs => ['Core', 'Debug'], :path => 'xxx/btrace-iOS'
 pod 'fishhook', :git => 'https://github.com/facebook/fishhook.git', :branch => 'main'
 ```
 

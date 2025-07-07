@@ -29,15 +29,23 @@ TODO: Add long description of the pod here.
   # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
 
   s.ios.deployment_target = '12.0'
-  s.default_subspecs = 'BTrace'
+  s.default_subspecs = 'Core'
   
   # BTrace
-  s.subspec 'BTrace' do |ss|
+  s.subspec 'Core' do |ss|
     ss.source_files = 'BTrace/Classes/**/*.{h,hpp,c,cc,m,mm,cpp}'
     ss.public_header_files = 'BTrace/Classes/BTrace/Core/**/*.h'
     ss.pod_target_xcconfig = { 'CLANG_CXX_LANGUAGE_STANDARD' => 'gnu++17' }
     ss.dependency 'fishhook'
     ss.dependency 'Stinger'
     ss.library = 'z', 'sqlite3'
+  end
+
+  # Debug
+  s.subspec 'Debug' do |d|
+    d.source_files = 'BTraceDebug/Debug/**/*.{h,m,mm,c,cc,cpp}'
+    d.private_header_files = 'BTraceDebug/Debug/**/*.{h}'
+    d.dependency 'BTrace/Core'
+    d.dependency 'GCDWebServer/Core'
   end
 end

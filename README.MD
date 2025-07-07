@@ -118,8 +118,7 @@ Record trace data offline without Instruments to help find performance issue of 
 Clone source code, and add the following lines to your Podfile:
 
 ```ruby
-pod 'BTrace', :path => 'xxx/btrace-iOS'
-pod 'BTraceDebug', :path => 'xxx/btrace-iOS'
+pod 'BTrace', :subspecs => ['Core', 'Debug'], :path => 'xxx/btrace-iOS'
 pod 'fishhook', :git => 'https://github.com/facebook/fishhook.git', :branch => 'main'
 ```
 
