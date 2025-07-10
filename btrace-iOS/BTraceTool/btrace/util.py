@@ -34,7 +34,6 @@ DEFAULT_CONFIG = {
     "enable": True,
     "timeout": 36000,
     "max_records": 10000,
-    "buffer_size": 4,
     "plugins": [
         {"name": "timeseries", "config": TIMESERIES_CONFIG},
         {"name": "timeprofiler", "config": TIMEPROFILER_CONFIG},
