@@ -79,6 +79,7 @@ def cmd_record(args):
 
     device_id = args.device_id
     bundle_id = args.bundle_id
+    frequency = args.frequency
     time_limit = args.time_limit or 3600
     hitch = args.hitch or 50
     hitch = max(hitch, 33)
@@ -86,8 +87,12 @@ def cmd_record(args):
     launch = args.launch
     next_launch = args.next_launch
     verbose = args.verbose
+    upload = args.upload
     
     util.set_verbose(verbose)
+    
+    if util.verbose():
+        print("args: ", args)
 
     device_info = {}
 
@@ -164,7 +169,7 @@ def cmd_record(args):
     pid = device.connect_if_need(device_id)
     pid_list.append(pid)
 
-    util.set_record_parameter(main_thread_only, hitch)
+    util.set_record_parameter(main_thread_only, hitch, frequency)
 
     if launch:
         app.launch(device_id, bundle_id)
@@ -188,7 +193,7 @@ def cmd_record(args):
 
     signal.signal(signal.SIGINT, signal_stop)
 
-    print(f"Press cltr+c to stop")
+    print(f"Press ctrl+c to stop")
 
     interval = 0.5
     record_time = 0
@@ -218,10 +223,11 @@ def cmd_parse(args):
     sys_symbol = args.sys_symbol
     force = args.force
     verbose = args.verbose
+    upload = args.upload
     
     util.set_verbose(verbose)
     
-    parse(file_path, dsym_path, force, sys_symbol)
+    parse(file_path, dsym_path, force, sys_symbol, upload)
     
     
 def cmd_export(args):
@@ -274,6 +280,7 @@ def main():
         "-H", "--hitch", dest="hitch", type=int, help="hitch thres"
     )
     record_parser.add_argument("-d", "--dsym_path", dest="dsym_path", help="dsym dir")
+    record_parser.add_argument("-f", "--frequency", dest="frequency", help="frequency, e.g., 1ms, 100us")
     record_parser.add_argument(
         "-m",
         "--main_thread_only",
@@ -293,6 +300,9 @@ def main():
     record_parser.add_argument(
         "-v", "--verbose", dest="verbose", action="store_true", help="show verbose info"
     )
+    record_parser.add_argument(
+        "-u", "--upload", dest="upload", action="store_true", help="upload trace file"
+    )
 
     # parse
     parser_lib = subparser.add_parser("parse", help="parse trace data")
@@ -306,6 +316,9 @@ def main():
     )
     parser_lib.add_argument(
         "-v", "--verbose", dest="verbose", action="store_true", help="show verbose info"
+    )
+    parser_lib.add_argument(
+        "-u", "--upload", dest="upload", action="store_true", help="upload trace file"
     )
     
     # export
