@@ -95,7 +95,7 @@ def stop_record() -> Optional[bytes]:
     url = util.API_HOST + "/record/stop"
     
     config = {}
-    resp = requests.post(url, json=config, timeout=30)
+    resp = requests.post(url, json=config, timeout=60)
     resp.raise_for_status()
     
     gz_data = resp.content
