@@ -32,7 +32,7 @@ public class TraceGlobal {
             nativeInit(Looper.getMainLooper().getThread());
             JNIHook.init();
             success = true;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Log.e(TAG, "rhea-trace init failed: ", e);
             success = false;
         }

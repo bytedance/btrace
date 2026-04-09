@@ -40,9 +40,9 @@ public class SamplingMappingDecoder {
         int version = buffer.getInt();
         int count = buffer.getInt();
         for (int i = 0; i < count; i++) {
-            if (buffer.remaining() > 12) {
+            if (buffer.remaining() >= 10) {
                 long pointer = buffer.getLong();
-                short len = buffer.getShort();
+                int len = buffer.getShort() & 0xffff;
                 if (len > 0) {
                     byte[] b = new byte[len];
                     buffer.get(b);
@@ -53,7 +53,7 @@ public class SamplingMappingDecoder {
             }
         }
         while (buffer.hasRemaining()) {
-            int tid = buffer.getShort();
+            int tid = version >= 2 ? buffer.getInt() : (buffer.getShort() & 0xffff);
             int len = buffer.get();
             if (len > 0 && len <= buffer.remaining()) {
                 byte[] name = new byte[len];

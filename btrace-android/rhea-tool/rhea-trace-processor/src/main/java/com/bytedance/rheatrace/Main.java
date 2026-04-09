@@ -32,6 +32,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Scanner;
 import java.util.StringTokenizer;
@@ -141,11 +142,23 @@ public class Main {
     }
 
     private static void prepareAdbForward(Arguments arg) throws IOException, InterruptedException {
-        int appServerPort;
-        try {
-            appServerPort = getAppServerPort(arg);
-        } catch (Exception e) {
-            throw new TraceError("prepare adb forward failed", "get app server port failed", e);
+        int appServerPort = -1;
+        Exception lastError = null;
+        for (int i = 0; i < 10 && appServerPort <= 0; i++) {
+            try {
+                appServerPort = getAppServerPort(arg);
+            } catch (Exception e) {
+                lastError = e;
+            }
+            if (appServerPort > 0) {
+                break;
+            }
+            if (i < 9) {
+                Thread.sleep(500);
+            }
+        }
+        if (appServerPort <= 0 && lastError != null) {
+            throw new TraceError("prepare adb forward failed", "get app server port failed", lastError);
         }
         if (appServerPort <= 0) {
             throw new TraceError("cannot establish connection to app trace server", "server port not found");
@@ -154,20 +167,52 @@ public class Main {
     }
 
     private static int getAppServerPort(Arguments arg) throws IOException, InterruptedException {
-        String dirPath = "/storage/emulated/0/Android/data/" + arg.appName + "/files/rhea-port";
-        String results = Adb.callString("shell", "ls", dirPath);
-        String[] lines = results.split("\n");
-        for (String line : lines) {
-            try {
-                int possiblePort = Integer.parseInt(line);
-                if (possiblePort > 0) {
-                    return possiblePort;
-                }
-            } catch (Exception e) {
-                Log.red(e.getMessage());
+        for (String dirPath : getAppServerPortDirCandidates(arg.appName)) {
+            Integer port = tryReadPortFromDir(dirPath);
+            if (port != null && port > 0) {
+                return port;
             }
         }
         return -1;
+    }
+
+    private static List<String> getAppServerPortDirCandidates(String appName) throws IOException, InterruptedException {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add("/storage/emulated/0/Android/data/" + appName + "/files/rhea-port");
+        candidates.add("/sdcard/Android/data/" + appName + "/files/rhea-port");
+        StringBuilder script = new StringBuilder();
+        script.append("for d in ");
+        script.append("/storage/emulated/*/Android/data/").append(appName).append("/files/rhea-port ");
+        script.append("/mnt/shell/emulated/*/Android/data/").append(appName).append("/files/rhea-port");
+        script.append("; do if [ -d \"$d\" ]; then echo \"$d\"; fi; done");
+        String results = Adb.callString("shell", "sh", "-c", script.toString());
+        for (String line : results.split("\n")) {
+            String candidate = line.trim();
+            if (!candidate.isEmpty()) {
+                candidates.add(candidate);
+            }
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private static Integer tryReadPortFromDir(String dirPath) {
+        try {
+            String results = Adb.callString("shell", "ls", dirPath);
+            String[] lines = results.split("\n");
+            for (String line : lines) {
+                try {
+                    int possiblePort = Integer.parseInt(line.trim());
+                    if (possiblePort > 0) {
+                        return possiblePort;
+                    }
+                } catch (Exception e) {
+                    Log.d("skip invalid port entry `" + line + "` in " + dirPath);
+                }
+            }
+        } catch (Exception e) {
+            Log.d("read app server port dir failed: " + dirPath + ", " + e.getMessage());
+        }
+        return null;
     }
 
     private static void removeForwardPort() {

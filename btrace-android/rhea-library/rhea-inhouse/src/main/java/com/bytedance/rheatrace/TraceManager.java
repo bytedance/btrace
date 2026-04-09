@@ -40,8 +40,10 @@ public class TraceManager {
 
     private static final String TAG = "RheaTrace:Manager";
 
+    private final Object traceLock = new Object();
     private String tracingDirPath;
     private long[] traceTokens = null;
+    private boolean startInProgress = false;
 
     public static TraceManager getInstance() {
         return Holder.INSTANCE;
@@ -52,15 +54,11 @@ public class TraceManager {
             startTracing(false);
         }
         tracingDirPath = context.getFilesDir().getAbsolutePath() + "/rhea/tracing/" + Process.myPid();
-        Thread serverThread = new Thread(() -> HttpServer.start(context.getExternalFilesDir(null), tracingDirPath));
+        Thread serverThread = new Thread(() -> HttpServer.start(context.getExternalFilesDirs(null), tracingDirPath));
         serverThread.start();
     }
 
     public boolean startTracing(boolean async) {
-        if (traceTokens != null) {
-            Log.e(TAG, "start failed: already started and not yet stopped");
-            return false;
-        }
         if (!TraceGlobal.init()) {
             Log.e(TAG, "start failed: global dependency init failed");
             return false;
@@ -69,30 +67,60 @@ public class TraceManager {
         if (traceMetas.isEmpty()) {
             return false;
         }
-        if (async) {
-            Thread startThread = new Thread(() -> {
-                List<TraceAbility<?>> traceAbilities = TraceAbilityCenter.getAbilities(traceMetas);
-                long[] tokens = new long[traceMetas.size()];
-                for (int i = 0; i < traceMetas.size(); i++) {
-                    tokens[i] = traceAbilities.get(i).start();
-                }
-                this.traceTokens = tokens;
-            });
-            startThread.start();
-        } else {
-            List<TraceAbility<?>> traceAbilities = TraceAbilityCenter.getAbilities(traceMetas);
-            long[] tokens = new long[traceMetas.size()];
-            for (int i = 0; i < traceMetas.size(); i++) {
-                tokens[i] = traceAbilities.get(i).start();
+        synchronized (traceLock) {
+            if (traceTokens != null || startInProgress) {
+                Log.e(TAG, "start failed: already started and not yet stopped");
+                return false;
             }
-            this.traceTokens = tokens;
+            if (async) {
+                startInProgress = true;
+                Thread startThread = new Thread(() -> {
+                    try {
+                        long[] tokens = startTrace(traceMetas);
+                        synchronized (traceLock) {
+                            this.traceTokens = tokens;
+                        }
+                    } catch (Throwable t) {
+                        Log.e(TAG, "async start failed", t);
+                    } finally {
+                        synchronized (traceLock) {
+                            startInProgress = false;
+                            traceLock.notifyAll();
+                        }
+                    }
+                });
+                startThread.start();
+            } else {
+                this.traceTokens = startTrace(traceMetas);
+            }
+            return true;
         }
-        return true;
+    }
+
+    private long[] startTrace(List<TraceMeta> traceMetas) {
+        List<TraceAbility<?>> traceAbilities = TraceAbilityCenter.getAbilities(traceMetas);
+        long[] tokens = new long[traceMetas.size()];
+        for (int i = 0; i < traceMetas.size(); i++) {
+            tokens[i] = traceAbilities.get(i).start();
+        }
+        return tokens;
     }
 
     public boolean stopTracing() {
-        long[] startTokens = this.traceTokens;
-        traceTokens = null;
+        long[] startTokens;
+        synchronized (traceLock) {
+            while (startInProgress) {
+                try {
+                    traceLock.wait(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    Log.e(TAG, "stop interrupted while waiting start to finish", e);
+                    return false;
+                }
+            }
+            startTokens = this.traceTokens;
+            traceTokens = null;
+        }
         if (startTokens == null) {
             Log.e(TAG, "stop failed: no start tokens");
             return false;
@@ -108,9 +136,13 @@ public class TraceManager {
             JSONObject extra = getExtra();
             String extraStr = extra == null ? "" : extra.toString();
             String path = getDumpPath();
+            int dumpResult = 0;
             if (!makeDumpDir(path)) {
                 Log.e(TAG, "make dump dir failed: " + path);
-                HttpServer.getServer().onTraceDumpFinished(-100, getDumpPath(), traceMetas, startTokens, endTokens);
+                HttpServer.Server server = HttpServer.getServer();
+                if (server != null) {
+                    server.onTraceDumpFinished(-100, getDumpPath(), traceMetas, startTokens, endTokens);
+                }
                 return;
             }
             for (int i = 0; i < traceMetas.size(); i++) {
@@ -120,9 +152,15 @@ public class TraceManager {
                 int result = ability.dumpTokenRange(startToken, endToken, path, extraStr);
                 if (result != 0) {
                     Log.e(TAG, "dumping failed for " + traceMetas.get(i).getName() + ", error code is " + result);
+                    if (dumpResult == 0) {
+                        dumpResult = result;
+                    }
                 }
             }
-            HttpServer.getServer().onTraceDumpFinished(0, getDumpPath(), traceMetas, startTokens, endTokens);
+            HttpServer.Server server = HttpServer.getServer();
+            if (server != null) {
+                server.onTraceDumpFinished(dumpResult, getDumpPath(), traceMetas, startTokens, endTokens);
+            }
         });
         return true;
     }
