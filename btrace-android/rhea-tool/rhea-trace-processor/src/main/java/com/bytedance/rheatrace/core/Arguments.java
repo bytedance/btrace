@@ -203,9 +203,11 @@ public class Arguments {
                         };
                         break;
                     case "-waitTraceTimeout":
+                        ensureKeyWithValue(args, i);
                         waitTraceTimeout = Integer.parseInt(args[i++]);
                         break;
                     case "-launcher":
+                        ensureKeyWithValue(args, i);
                         launcher = args[i++];
                         break;
                     default:
