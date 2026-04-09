@@ -33,22 +33,34 @@ public:
         int dirPathLen = strlen(outDir);
         char* path = new char[dirPathLen + 64]; // suppose that dumpFileName is not longer than 64
         sprintf(path, "%s/%s", outDir, getDumpPerfFileName());
-        int fd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
+        int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP);
         if (fd == -1) {
-            return errno;
+            int error = errno;
+            delete[] path;
+            return error;
         }
         Dumper* dumper = newDumper();
         int mappingFd = -1;
         if (dumper != nullptr && dumper->hasMapping()) {
             memset(path, 0, dirPathLen + 64);
             sprintf(path, "%s/%s", outDir, getDumpMappingFileName());
-            mappingFd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
+            mappingFd = open(path, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP);
+            if (mappingFd == -1) {
+                int error = errno;
+                delete[] path;
+                delete dumper;
+                close(fd);
+                return error;
+            }
         }
         uint64_t curTime = current_boot_time_millis();
         int result = mBuffer->dump(env, fd, mappingFd, type, version, curTime, extra, extraLen,
                                    dumpRawData, dumper);
         delete[] path;
         delete dumper;
+        if (mappingFd != -1) {
+            close(mappingFd);
+        }
         close(fd);
         return result;
     }
@@ -61,22 +73,34 @@ public:
         int dirPathLen = strlen(outDir);
         char* path = new char[dirPathLen + 64]; // suppose that dumpFileName is not longer than 64
         sprintf(path, "%s/%s", outDir, getDumpPerfFileName());
-        int fd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
+        int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP);
         if (fd == -1) {
-            return errno;
+            int error = errno;
+            delete[] path;
+            return error;
         }
         Dumper* dumper = newDumper();
         int mappingFd = -1;
         if (dumper != nullptr && dumper->hasMapping()) {
             memset(path, 0, dirPathLen + 64);
             sprintf(path, "%s/%s", outDir, getDumpMappingFileName());
-            mappingFd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
+            mappingFd = open(path, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP);
+            if (mappingFd == -1) {
+                int error = errno;
+                delete[] path;
+                delete dumper;
+                close(fd);
+                return error;
+            }
         }
         uint64_t curTime = current_boot_time_millis();
         int result = mBuffer->dumpPart(env, fd, mappingFd, type, version, curTime, extra, extraLen,
                                        dumpRawData, dumper, startTicket, endTicket);
         delete[] path;
         delete dumper;
+        if (mappingFd != -1) {
+            close(mappingFd);
+        }
         close(fd);
         return result;
     }

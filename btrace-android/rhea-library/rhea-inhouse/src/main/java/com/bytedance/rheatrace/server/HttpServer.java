@@ -98,14 +98,22 @@ public final class HttpServer {
                     case "start":
                         // Start trace asynchronously so that hooked Thread::init() will be called on newly created thread
                         // and we can get thread_list instance to monitor java object allocation.
-                        TraceManager.getInstance().startTracing(true);
+                        if (!TraceManager.getInstance().startTracing(true)) {
+                            error = "start trace failed";
+                            dataFlushFinished = true;
+                            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, error);
+                        }
                         dataFlushFinished = false;
                         error = null;
                         traceDebugInfo = null;
                         Log.i(TAG, "rhea trace started");
                         return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "start trace");
                     case "stop":
-                        TraceManager.getInstance().stopTracing();
+                        if (!TraceManager.getInstance().stopTracing()) {
+                            error = "stop trace failed";
+                            dataFlushFinished = true;
+                            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, error);
+                        }
                         Log.i(TAG, "rhea trace stopped");
                         return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "stop trace");
                     case "clean":
@@ -194,7 +202,8 @@ public final class HttpServer {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    Thread.currentThread().interrupt();
+                    return false;
                 }
             }
             return false;
