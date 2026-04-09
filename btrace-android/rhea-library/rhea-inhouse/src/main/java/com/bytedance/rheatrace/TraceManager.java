@@ -108,9 +108,13 @@ public class TraceManager {
             JSONObject extra = getExtra();
             String extraStr = extra == null ? "" : extra.toString();
             String path = getDumpPath();
+            int dumpResult = 0;
             if (!makeDumpDir(path)) {
                 Log.e(TAG, "make dump dir failed: " + path);
-                HttpServer.getServer().onTraceDumpFinished(-100, getDumpPath(), traceMetas, startTokens, endTokens);
+                HttpServer.Server server = HttpServer.getServer();
+                if (server != null) {
+                    server.onTraceDumpFinished(-100, getDumpPath(), traceMetas, startTokens, endTokens);
+                }
                 return;
             }
             for (int i = 0; i < traceMetas.size(); i++) {
@@ -120,9 +124,15 @@ public class TraceManager {
                 int result = ability.dumpTokenRange(startToken, endToken, path, extraStr);
                 if (result != 0) {
                     Log.e(TAG, "dumping failed for " + traceMetas.get(i).getName() + ", error code is " + result);
+                    if (dumpResult == 0) {
+                        dumpResult = result;
+                    }
                 }
             }
-            HttpServer.getServer().onTraceDumpFinished(0, getDumpPath(), traceMetas, startTokens, endTokens);
+            HttpServer.Server server = HttpServer.getServer();
+            if (server != null) {
+                server.onTraceDumpFinished(dumpResult, getDumpPath(), traceMetas, startTokens, endTokens);
+            }
         });
         return true;
     }
