@@ -30,7 +30,7 @@ namespace rheatrace {
  * preset trace point to capture java stack synchronously and saved it to buffer inside this
  * collector.
  */
-class SamplingCollector : public PerfCollectorBaseImpl<rheatrace::TYPE_SAMPLING, 5, false, SamplingRecord> {
+class SamplingCollector : public PerfCollectorBaseImpl<rheatrace::TYPE_SAMPLING, 6, false, SamplingRecord> {
 public:
     static SamplingCollector* create(JNIEnv* env, jlongArray configs);
 
@@ -78,7 +78,7 @@ protected:
 private:
 
     SamplingCollector(PerfBuffer<SamplingRecord>* buffer, SamplingConfig& config)
-            : PerfCollectorBaseImpl<rheatrace::TYPE_SAMPLING, 5, false, SamplingRecord>(buffer),
+            : PerfCollectorBaseImpl<rheatrace::TYPE_SAMPLING, 6, false, SamplingRecord>(buffer),
               config(config), paused(false) {
     }
 

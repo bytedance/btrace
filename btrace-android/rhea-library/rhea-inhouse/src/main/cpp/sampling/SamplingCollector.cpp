@@ -80,7 +80,7 @@ bool SamplingCollector::request(SamplingType type, void* self, bool force, bool 
             return false;
         }
         r.mType = type;
-        r.mTid = gettid();
+        r.mTid = static_cast<uint32_t>(gettid());
         r.mMessageId = messageIndex;
 
         auto& objectStat = JavaObjectStat::getAllocatedObjectStat();
@@ -177,7 +177,7 @@ bool SamplingDumper::dumpMapping(int fd) {
     }
     if (sigsetjmp(dumpMappingJmp, 1) == 0) {
         uint64_t magic = 0;
-        uint32_t version = 1;
+        uint32_t version = 2;
         write(fd, &magic, sizeof(magic));
         write(fd, &version, sizeof(version));
         uint32_t count = mMethodIds.size();
@@ -207,9 +207,10 @@ bool SamplingDumper::dumpMapping(int fd) {
                         if (file) {
                             char thread_name[17];
                             if (fgets(thread_name, sizeof(thread_name), file) != nullptr) {
-                                write(fd, &tid, 2);
+                                uint32_t tid32 = static_cast<uint32_t>(tid);
+                                write(fd, &tid32, sizeof(tid32));
                                 thread_name[16] = 0;
-                                uint8_t len = strlen(thread_name);
+                                uint8_t len = static_cast<uint8_t>(strlen(thread_name));
                                 write(fd, &len, 1);
                                 write(fd, thread_name, len);
                             }

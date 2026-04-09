@@ -165,7 +165,7 @@ public class StackList {
         Map<Long, Integer> wakers = new HashMap<>();
         while (buffer.hasRemaining()) {
             int type = buffer.getShort() & 0xffff;
-            int tid = buffer.getShort();
+            int tid = version >= 6 ? buffer.getInt() : (buffer.getShort() & 0xffff);
             int messageId = buffer.getInt();
             long nanoTime = buffer.getLong();
             long nanoTimeEnd = buffer.getLong();

@@ -50,7 +50,7 @@ enum class SamplingType {
 
 struct SamplingRecord {
     SamplingType mType;
-    uint16_t mTid;
+    uint32_t mTid;
     uint32_t mMessageId;
     uint64_t mNanoTime; // when mType is kUnpark/kNotify/kUnlock, this property represents the time of corresponding park/wait/lock
     uint64_t mCpuTime;
@@ -64,17 +64,17 @@ struct SamplingRecord {
     Stack mStack;
 
     uint32_t size() {
-        return 2 + 2 + 4 + 8 * 6 + 4 * 3 + mStack.size();
+        return 2 + 4 + 4 + 8 * 6 + 4 * 3 + mStack.size();
     }
 
     static uint32_t maxBytes() {
-        return 2 + 2 + 4 + 8 * 6 + 4 * 3 + Stack::maxSize();
+        return 2 + 4 + 4 + 8 * 6 + 4 * 3 + Stack::maxSize();
     }
 
     uint32_t encodeInto(char* out, std::unordered_set<uint64_t>* set) {
         int size = 0;
         size += rheatrace::writeBuf(out + size, (uint16_t) mType);
-        size += rheatrace::writeBuf(out + size, (uint16_t) mTid);
+        size += rheatrace::writeBuf(out + size, mTid);
         size += rheatrace::writeBuf(out + size, mMessageId);
         size += rheatrace::writeBuf(out + size, mNanoTime);
         size += rheatrace::writeBuf(out + size, mEndNanoTime);
