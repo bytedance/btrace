@@ -13,6 +13,7 @@
 
 import bisect
 import os
+import subprocess
 from typing import Dict, List, Set, Optional, Tuple
 from btrace import symbol_info
 from btrace.extractor import read_file
@@ -28,6 +29,7 @@ from btrace.model import (
 )
 from btrace.open_trace import open_trace
 from btrace.pb import perfetto_pb2
+from btrace import util
 from btrace.perfetto import gen_perfetto_trace
 
 
@@ -79,6 +81,37 @@ def symbolicate(
                 image_dsym_path_map, image_info, address_list, addr_symbol_map
             )
 
+    cpp_demangle_info_list: List[SymbolInfo] = []
+    cpp_demangle_name_list: List[str] = []
+    for _, info in addr_symbol_map.items():
+        if info.name.startswith("_Z") and info.name.find("metasec") == -1 and \
+            info.name.find("[") == -1:
+            cpp_demangle_info_list.append(info)
+            cpp_demangle_name_list.append(f"_{info.name}")
+            
+    if len(cpp_demangle_name_list):
+        batch = 0
+        batch_size = 100
+        while True:
+            begin_idx = batch * batch_size
+            
+            if len(cpp_demangle_name_list) <= begin_idx:
+                break
+            
+            end_idx = min((batch+1) * batch_size, len(cpp_demangle_name_list))
+            cpp_name_list = " ".join(cpp_demangle_name_list[begin_idx:end_idx])
+            cmd_str = f"c++filt {cpp_name_list}"
+            demangle_name_list: List[str] = subprocess.run(cmd_str, shell=True, capture_output=True).stdout.decode().strip().split("\n")
+            
+            if len(demangle_name_list) == end_idx - begin_idx:
+                for i in range(begin_idx, end_idx):
+                    info = cpp_demangle_info_list[i]
+                    demangle_name = demangle_name_list[i-begin_idx]
+                    if demangle_name:
+                        info.name = demangle_name
+            
+            batch += 1
+    
     return addr_symbol_map
 
 
@@ -97,7 +130,7 @@ def beautify_method_tree(root: MethodNode):
             next_time = next_node.start_time
 
         diff_time = next_time - node.end_time
-        node.end_time = node.end_time + int(min(diff_time, 1000))  # 1000us
+        node.end_time = node.end_time + int(min(diff_time, 100))  # 1000us
         child_wall_time = node.end_time - node.start_time
 
         if child_wall_time <= 0:
@@ -134,7 +167,8 @@ def construct_method_tree(
         alloc_size = sample.alloc_size
         alloc_count = sample.alloc_count
         stack = sample.calls
-
+        unlock_contention_list = sample.unlock_contention_list
+        
         if idx == 0:
             parent_node = method_tree.root
 
@@ -151,6 +185,10 @@ def construct_method_tree(
                     alloc_count,
                     alloc_count,
                 )
+                
+                if unlock_contention_list and i == len(stack)-1:
+                    node.unlock_contention_list = unlock_contention_list
+                    
                 method_tree.put_child(node, parent_node)
                 parent_node = node
         else:
@@ -177,6 +215,9 @@ def construct_method_tree(
                     last_child.update_end_time(end_time)
                     last_child.update_alloc_size(alloc_size)
                     last_child.update_alloc_count(alloc_count)
+                    
+                    if unlock_contention_list and j == len(stack)-1:
+                        last_child.unlock_contention_list = unlock_contention_list
 
                 parent_node = last_child
                 i += 1
@@ -196,6 +237,10 @@ def construct_method_tree(
                     prev_sample.alloc_count,
                     alloc_count,
                 )
+                
+                if unlock_contention_list and j == len(stack)-1:
+                    node.unlock_contention_list = unlock_contention_list
+                        
                 method_tree.put_child(node, parent_node)
                 parent_node = node
                 j += 1
@@ -222,11 +267,11 @@ def parse_raw_data(
     cpu_sample_list = raw_content.cpu_sample_list
     image_info_list = raw_content.image_info_list
 
-    image_info_map: Dict[ImageInfo] = {}
+    image_info_map: Dict[str, ImageInfo] = {}
     image_addr_set_map: Dict[str, Set[int]] = {}
     image_address_list = [image_info.address for image_info in image_info_list]
 
-    for sample in cpu_sample_list:
+    for sample in cpu_sample_list: 
         for address in sample.calls:
             image_info_idx = get_image_info(image_address_list, address)
 
@@ -270,7 +315,7 @@ def parse_raw_data(
 
         for address in sample.calls:
             symbol_info = addr_symbol_map.get(address)
-
+            
             if symbol_info:
                 stack.append(address)
 
@@ -303,12 +348,13 @@ def parse_raw_data(
 
 
 def parse(
-    file_path: str, dsym_path: str, force: bool = False, sys_symbol: bool = False
+    file_path: str, dsym_path: str, force: bool = False, sys_symbol: bool = False,
+    upload: bool = False
 ):
     print("parsing file, please wait...")
 
     if not os.path.exists(dsym_path):
-        err_msg = "Dsym path does not exist!"
+        err_msg = f"Dsym path {dsym_path} does not exist!"
         raise RuntimeError(err_msg)
 
     file_prefix, file_ext = os.path.splitext(file_path)

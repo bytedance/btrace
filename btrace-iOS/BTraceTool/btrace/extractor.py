@@ -28,6 +28,7 @@ from btrace.model import (
     ImageInfo,
     IntervalSampleNode,
     LockAction,
+    LockContentionPair,
     LockSample,
     LockSampleNode,
     MemSample,
@@ -41,6 +42,8 @@ from btrace.model import (
     TimeRangeSample,
     TimeRangeSampleNode,
     TraceRawContent,
+    IOSample,
+    IOSampleNode,
     image_info_key,
     sample_info_key,
 )
@@ -58,6 +61,8 @@ cpu_interval_sample_table_name = "CPUIntervalSampleModel"
 cpu_batch_interval_sample_table_name = "CPUBatchIntervalSampleModel"
 mem_sample_table_name = "MemSampleModel"
 mem_batch_sample_table_name = "MemBatchSampleModel"
+mem_alloc_sample_table_name = "MemAllocSampleModel"
+mem_alloc_batch_sample_table_name = "MemAllocBatchSampleModel"
 date_sample_table_name = "DateSampleModel"
 date_batch_sample_table_name = "DateBatchSampleModel"
 lock_sample_table_name = "LockSampleModel"
@@ -70,6 +75,8 @@ profile_sample_table_name = "ProfileSampleModel"
 profile_batch_sample_table_name = "ProfileBatchSampleModel"
 time_range_sample_table_name = "TimeRangeSampleModel"
 time_range_batch_sample_table_name = "TimeRangeBatchSampleModel"
+io_sample_table_name = "IOSampleModel"
+io_batch_sample_table_name = "IOBatchSampleModel"
 
 
 def gen_callstack_map(callstack_table: bytes) -> Dict[int, CallstackNode]:
@@ -673,6 +680,85 @@ def gen_mem_sample_list_v3(mem_sample_bytes: bytes) -> List[MemSampleNode]:
     return result
 
 
+def gen_mem_sample_list_v4(sample_bytes: bytes) -> List[MemSampleNode]:
+    result: List[MemSampleNode] = []
+    step_size = 4
+    for idx in range(0, len(sample_bytes), 7 * step_size):
+        time = int.from_bytes(sample_bytes[idx : idx + step_size], byteorder="little")
+        cpu_time = int.from_bytes(
+            sample_bytes[idx + step_size : idx + 2 * step_size],
+            byteorder="little",
+        )
+        alloc_size = int.from_bytes(
+            sample_bytes[idx + 2 * step_size : idx + 3 * step_size],
+            byteorder="little",
+        )
+        alloc_count = int.from_bytes(
+            sample_bytes[idx + 3 * step_size : idx + 4 * step_size],
+            byteorder="little",
+        )
+        stack_id = int.from_bytes(
+            sample_bytes[idx + 4 * step_size : idx + 5 * step_size],
+            byteorder="little",
+        )
+        alloc_addr = int.from_bytes(
+            sample_bytes[idx + 5 * step_size : idx + 6 * step_size],
+            byteorder="little",
+        )
+        curr_size = int.from_bytes(
+            sample_bytes[idx + 6 * step_size : idx + 7 * step_size],
+            byteorder="little",
+        )
+
+        time *= 10
+        cpu_time *= 10
+
+        result.append(
+            MemSampleNode(alloc_addr, curr_size, time, cpu_time, stack_id, alloc_size, alloc_count)
+        )
+
+    return result
+
+
+def gen_mem_alloc_sample_list_v4(sample_bytes: bytes) -> List[MemSampleNode]:
+    result: List[MemSampleNode] = []
+    step_size = 4
+    for idx in range(0, len(sample_bytes), 8 * step_size):
+        time = int.from_bytes(sample_bytes[idx : idx + step_size], byteorder="little")
+        cpu_time = int.from_bytes(
+            sample_bytes[idx + step_size : idx + 2 * step_size],
+            byteorder="little",
+        )
+        alloc_size = int.from_bytes(
+            sample_bytes[idx + 2 * step_size : idx + 3 * step_size],
+            byteorder="little",
+        )
+        alloc_count = int.from_bytes(
+            sample_bytes[idx + 3 * step_size : idx + 4 * step_size],
+            byteorder="little",
+        )
+        stack_id = int.from_bytes(
+            sample_bytes[idx + 4 * step_size : idx + 5 * step_size],
+            byteorder="little",
+        )
+        alloc_addr = int.from_bytes(
+            sample_bytes[idx + 5 * step_size : idx + 7 * step_size],
+            byteorder="little",
+        )
+        curr_size = int.from_bytes(
+            sample_bytes[idx + 7 * step_size : idx + 8 * step_size],
+            byteorder="little",
+        )
+
+        time *= 10
+        cpu_time *= 10
+
+        result.append(
+            MemSampleNode(alloc_addr, curr_size, time, cpu_time, stack_id, alloc_size, alloc_count)
+        )
+
+    return result
+
 def gen_interval_sample_list(interval_sample_bytes: bytes) -> List[IntervalSampleNode]:
     result: List[IntervalSampleNode] = []
     step_size = 4
@@ -904,6 +990,46 @@ def gen_cpu_sample_list_v3(sample_bytes: bytes) -> List[SampleNode]:
     for node in result:
         node.start_time *= 10
         node.start_cpu_time *= 10
+
+    return result
+
+
+def gen_io_sample_list_v4(sample_bytes: bytes) -> List[IOSampleNode]:
+    result: List[IOSampleNode] = []
+    step_size = 4
+    for idx in range(0, len(sample_bytes), 7 * step_size):
+        time = int.from_bytes(sample_bytes[idx : idx + step_size], byteorder="little")
+        cpu_time = int.from_bytes(
+            sample_bytes[idx + step_size : idx + 2 * step_size],
+            byteorder="little",
+        )
+        alloc_size = int.from_bytes(
+            sample_bytes[idx + 2 * step_size : idx + 3 * step_size],
+            byteorder="little",
+        )
+        alloc_count = int.from_bytes(
+            sample_bytes[idx + 3 * step_size : idx + 4 * step_size],
+            byteorder="little",
+        )
+        stack_id = int.from_bytes(
+            sample_bytes[idx + 4 * step_size : idx + 5 * step_size],
+            byteorder="little",
+        )
+        type = int.from_bytes(
+            sample_bytes[idx + 5 * step_size : idx + 5 * step_size + 1],
+            byteorder="little",
+        )
+        size = int.from_bytes(
+            sample_bytes[idx + 5 * step_size + 1: idx + 7 * step_size],
+            byteorder="little",
+        )
+
+        time *= 10
+        cpu_time *= 10
+
+        result.append(
+            IOSampleNode(time, cpu_time, stack_id, alloc_size, alloc_count, type, size)
+        )
 
     return result
 
@@ -1424,6 +1550,22 @@ def read_mem_samples(
             mem_sample.start_cpu_time *= 10
 
             return mem_sample
+        
+        def gen_mem_sample_v4(row) -> MemSample:
+            tid = row["tid"]
+            start_time = int(row["time"]) * 10
+            cpu_time = int(row["cpu_time"]) * 10
+            alloc_size = int(row["alloc_size"])
+            alloc_count = int(row["alloc_count"])
+            alloc_addr = int(row["alloc_addr"])
+            curr_size = int(row["curr_size"])
+            stack_id = int(row["stack_id"])
+
+            mem_sample = MemSample(
+                tid, curr_size, start_time, cpu_time, stack_id, alloc_size, alloc_count
+            )
+
+            return mem_sample
 
         mem_sample_sql = (
             f"select * from {mem_sample_table_name} where trace_id={trace_id};"
@@ -1439,6 +1581,45 @@ def read_mem_samples(
                 mem_sample = gen_mem_sample_v2(one)
             elif version == 3:
                 mem_sample = gen_mem_sample_v3(one)
+            elif version == 4:
+                mem_sample = gen_mem_sample_v4(one)
+            else:
+                raise RuntimeError(
+                    "Unsupported version, please update 'sol' command line tool!"
+                )
+
+            tid = mem_sample.tid
+            tid_trace_list = mem_sample_map.get(tid) or []
+            tid_trace_list.append(mem_sample)
+            mem_sample_map[tid] = tid_trace_list
+            
+    if table_exists(con, mem_alloc_sample_table_name):
+        def gen_mem_alloc_sample_v4(row) -> MemSample:
+            tid = row["tid"]
+            start_time = int(row["time"]) * 10
+            cpu_time = int(row["cpu_time"]) * 10
+            alloc_size = int(row["alloc_size"])
+            alloc_count = int(row["alloc_count"])
+            alloc_addr = int(row["alloc_addr"])
+            # curr_alloc_size = int(row["curr_alloc_size"])
+            stack_id = int(row["stack_id"])
+
+            mem_sample = MemSample(
+                tid, 0, start_time, cpu_time, stack_id, alloc_size, alloc_count
+            )
+
+            return mem_sample
+
+        mem_sample_sql = (
+            f"select * from {mem_alloc_sample_table_name} where trace_id={trace_id};"
+        )
+        res = con.execute(mem_sample_sql)
+
+        for one in res.fetchall():
+            mem_sample: MemSample
+
+            if version == 4:
+                mem_sample = gen_mem_alloc_sample_v4(one)
             else:
                 raise RuntimeError(
                     "Unsupported version, please update 'btrace' command line tool!"
@@ -1467,18 +1648,61 @@ def read_mem_samples(
                 mem_sample_list = gen_mem_sample_list_v2(mem_sample_bytes)
             elif version == 3:
                 mem_sample_list = gen_mem_sample_list_v3(mem_sample_bytes)
+            elif version == 4:
+                mem_sample_list = gen_mem_sample_list_v4(mem_sample_bytes)
             else:
                 raise RuntimeError(
                     "Unsupported version, please update 'btrace' command line tool!"
                 )
 
-            for mem_sample in mem_sample_list:
-                alloc_size = int(mem_sample.size)
-                start_time = mem_sample.start_time
-                cpu_time = mem_sample.start_cpu_time
-                stack_id = mem_sample.stack_id
-                alloc_size = mem_sample.alloc_size
-                alloc_count = mem_sample.alloc_count
+            for mem_sample_node in mem_sample_list:
+                curr_size = int(mem_sample_node.size)
+                start_time = mem_sample_node.start_time
+                cpu_time = mem_sample_node.start_cpu_time
+                stack_id = mem_sample_node.stack_id
+                alloc_size = mem_sample_node.alloc_size
+                alloc_count = mem_sample_node.alloc_count
+
+                mem_sample = MemSample(
+                    tid,
+                    curr_size,
+                    start_time,
+                    cpu_time,
+                    stack_id,
+                    alloc_size,
+                    alloc_count,
+                )
+
+                tid_trace_list = mem_sample_map.get(tid) or []
+                tid_trace_list.append(mem_sample)
+                mem_sample_map[tid] = tid_trace_list
+                
+    if table_exists(con, mem_alloc_batch_sample_table_name):
+        mem_sample_sql = (
+            f"select * from {mem_alloc_batch_sample_table_name} where trace_id={trace_id};"
+        )
+        res = con.execute(mem_sample_sql)
+
+        for one in res.fetchall():
+            trace_id = one["trace_id"]
+            tid = one["tid"]
+            mem_sample_bytes: bytes = one["nodes"]
+            mem_sample_list: Optional[List[MemSampleNode]] = None
+
+            if version == 4:
+                mem_sample_list = gen_mem_alloc_sample_list_v4(mem_sample_bytes)
+            else:
+                raise RuntimeError(
+                    "Unsupported version, please update 'sol' command line tool!"
+                )
+
+            for mem_sample_node in mem_sample_list:
+                alloc_size = int(mem_sample_node.size)
+                start_time = mem_sample_node.start_time
+                cpu_time = mem_sample_node.start_cpu_time
+                stack_id = mem_sample_node.stack_id
+                alloc_size = mem_sample_node.alloc_size
+                alloc_count = mem_sample_node.alloc_count
 
                 mem_sample = MemSample(
                     tid,
@@ -1505,6 +1729,108 @@ def read_mem_samples(
             mem_sample.calls = stack
 
     return mem_sample_map
+
+def read_io_samples(
+    con: sqlite3.Connection,
+    trace_id: int,
+    callstack_table: Dict[int, CallstackNode],
+    version: int,
+) -> Dict[int, List[IOSample]]:
+    io_sample_map: Dict[int, List[IOSample]] = {}
+
+    if table_exists(con, io_sample_table_name):
+        def gen_io_sample_v4(row) -> IOSample:
+            tid = row["tid"]
+            start_time = int(row["time"]) * 10
+            cpu_time = int(row["cpu_time"]) * 10
+            alloc_size = int(row["alloc_size"])
+            alloc_count = int(row["alloc_count"])
+            stack_id = int(row["stack_id"])
+            type_size = int(row["type_size"])
+            type = (type_size & 0xff)
+            size = (type_size >> 8)
+
+            io_sample = IOSample(
+                tid, start_time, cpu_time, stack_id, 
+                alloc_size, alloc_count, type, size
+            )
+
+            return io_sample
+
+        io_sample_sql = (
+            f"select * from {io_sample_table_name} where trace_id={trace_id};"
+        )
+        res = con.execute(io_sample_sql)
+
+        for one in res.fetchall():
+            io_sample: IOSample
+
+            if version == 4:
+                io_sample = gen_io_sample_v4(one)
+            else:
+                raise RuntimeError(
+                    "Unsupported version, please update 'sol' command line tool!"
+                )
+
+            tid = io_sample.tid
+            tid_trace_list = io_sample_map.get(tid) or []
+            tid_trace_list.append(io_sample)
+            io_sample_map[tid] = tid_trace_list
+
+    if table_exists(con, io_batch_sample_table_name):
+        io_sample_sql = (
+            f"select * from {io_batch_sample_table_name} where trace_id={trace_id};"
+        )
+        res = con.execute(io_sample_sql)
+
+        for one in res.fetchall():
+            trace_id = one["trace_id"]
+            tid = one["tid"]
+            io_sample_bytes: bytes = one["nodes"]
+            io_sample_list: Optional[List[IOSampleNode]] = None
+
+            if version == 4:
+                io_sample_list = gen_io_sample_list_v4(io_sample_bytes)
+            else:
+                raise RuntimeError(
+                    "Unsupported version, please update 'sol' command line tool!"
+                )
+
+            for io_sample_node in io_sample_list:
+                start_time = io_sample_node.start_time
+                cpu_time = io_sample_node.start_cpu_time
+                stack_id = io_sample_node.stack_id
+                alloc_size = io_sample_node.alloc_size
+                alloc_count = io_sample_node.alloc_count
+                type = int(io_sample_node.type)
+                size = int(io_sample_node.size)
+
+                io_sample = IOSample(
+                    tid,
+                    start_time,
+                    cpu_time,
+                    stack_id,
+                    alloc_size,
+                    alloc_count,
+                    type,
+                    size
+                )
+
+                tid_trace_list = io_sample_map.get(tid) or []
+                tid_trace_list.append(io_sample)
+                io_sample_map[tid] = tid_trace_list
+
+    for tid, tid_trace_list in io_sample_map.items():
+        for idx, io_sample in enumerate(tid_trace_list):
+            stack_id = io_sample.stack_id
+            stack = unwind_stack_from_callstack_table(callstack_table, stack_id)
+
+            if len(stack) == 0 or stack[0] == 0:
+                continue
+
+            io_sample.calls = stack
+
+    return io_sample_map
 
 
 def read_async_samples(
@@ -1952,6 +2278,8 @@ def read_lock_samples(
     version: int,
 ) -> Dict[int, List[LockSample]]:
     lock_sample_map: Dict[int, List[LockSample]] = {}
+    lock_contention_map: Dict[int, List[LockContentionPair]] = {}
+    unlock_contention_list: List[LockSample] = []
 
     if table_exists(con, lock_sample_table_name):
         # lock sample
@@ -2008,17 +2336,17 @@ def read_lock_samples(
                     "Unsupported version, please update 'btrace' command line tool!"
                 )
 
-            for lock_sample in sample_list:
-                start_time = lock_sample.start_time
-                cpu_time = lock_sample.start_cpu_time
-                stack_id = lock_sample.stack_id
-                alloc_size = lock_sample.alloc_size
-                alloc_count = lock_sample.alloc_count
+            for lock_sample_node in sample_list:
+                start_time = lock_sample_node.start_time
+                cpu_time = lock_sample_node.start_cpu_time
+                stack_id = lock_sample_node.stack_id
+                alloc_size = lock_sample_node.alloc_size
+                alloc_count = lock_sample_node.alloc_count
 
                 lock_sample = LockSample(
                     tid,
-                    lock_sample.id,
-                    lock_sample.action,
+                    lock_sample_node.id,
+                    lock_sample_node.action,
                     start_time,
                     cpu_time,
                     stack_id,
@@ -2028,10 +2356,41 @@ def read_lock_samples(
                 tid_trace_list = lock_sample_map.get(tid) or []
                 tid_trace_list.append(lock_sample)
                 lock_sample_map[tid] = tid_trace_list
+                
+    lock_contention_set = set([LockAction.kMtxLockContention, 
+                               LockAction.kRdlockContention, 
+                               LockAction.kWrlockContention, 
+                               LockAction.kUnfairLockContention,
+                               LockAction.kCondWaitCtn])
+    unlock_contention_set = set([LockAction.kMtxUnlockContention, 
+                                LockAction.kRwUnlockContention, 
+                                LockAction.kUnfairUnlockContention,
+                                LockAction.kCondSignalCtn,
+                                LockAction.kCondBroadcastCtn])
 
     for tid, tid_trace_list in lock_sample_map.items():
+        
+        tid_trace_list.sort(key=sample_info_key)
 
         for idx, lock_sample in enumerate(tid_trace_list):
+            
+            # TODO, handle lock_sample lost
+            action = LockAction(lock_sample.action)
+            if action in lock_contention_set:
+                lock_contention_pair_list: List[LockContentionPair] = lock_contention_map.get(lock_sample.id, [])
+                
+                if 0 < len(lock_contention_pair_list) and not lock_contention_pair_list[-1].end:
+                    lock_contention_pair_list[-1].end = lock_sample
+                else:
+                    lock_contention_pair = LockContentionPair(lock_sample.id)
+                    lock_contention_pair.begin = lock_sample
+                    lock_contention_pair_list.append(lock_contention_pair)
+                    
+                lock_contention_map[lock_sample.id] = lock_contention_pair_list
+
+            elif action in unlock_contention_set:
+                unlock_contention_list.append(lock_sample)
+            
             stack = []
             stack_id = lock_sample.stack_id
 
@@ -2041,6 +2400,24 @@ def read_lock_samples(
                 continue
 
             lock_sample.calls = stack
+    
+    for unlock_contention_sample in unlock_contention_list:
+        lock_id = unlock_contention_sample.id
+        lock_contention_pair_list = lock_contention_map.get(lock_id, [])
+        
+        for lock_contention_pair in lock_contention_pair_list:
+            if lock_contention_pair.begin.start_time <= unlock_contention_sample.start_time and \
+                unlock_contention_sample.start_time <= lock_contention_pair.end.start_time:
+                lock_contention_pair.begin.unlock_contention_list.append(unlock_contention_sample) 
+    
+    # for lock_id, lock_contention_pair_list in lock_contention_map.items():
+    #     for lock_contention_pair in lock_contention_pair_list:
+    #         # lock_contention_pair.begin.unlock_contention_list = lock_contention_pair.unlock_contention_list
+    #         unlock_contention_list = lock_contention_pair.begin.unlock_contention_list
+    #         if unlock_contention_list:
+    #             print(f"lock: {lock_id}, action: {LockAction(lock_contention_pair.begin.action)}, begin time: {lock_contention_pair.begin.start_time}, end time: {lock_contention_pair.end.start_time}")
+    #         for unlock_contention_sample in unlock_contention_list:
+    #             print(f"\tunlock contention, tid: {unlock_contention_sample.tid}, lock: {lock_id}, action: {LockAction(unlock_contention_sample.action)}, time: {unlock_contention_sample.start_time}")
 
     return lock_sample_map
 
@@ -2085,9 +2462,10 @@ def read_thread_info(
 
 
 def read_custome_perfetto_info(
-    con: sqlite3.Connection, trace_id: int, version: int
+    con: sqlite3.Connection, trace_id: int, version: int, trace_start_time: int
 ) -> Tuple[Dict[str, List], Dict[str, List[PerfettoCounterInfo]]]:
     slice_info_map: Dict[str, List] = {}
+    slice_info_v2_map: Dict[str, List] = {}
     counter_info_map: Dict[str, List[PerfettoCounterInfo]] = {}
 
     if not table_exists(con, timeseries_info_table_name):
@@ -2132,6 +2510,36 @@ def read_custome_perfetto_info(
             slice_info_list = slice_info_map.get(type) or []
             slice_info_list.append(slice_info)
             slice_info_map[type] = slice_info_list
+        elif perfetto_type == "slice_v2":
+            begin_time = int(info["begin_time"])
+            end_time = int(info["end_time"])
+            name = info.get("name", "")
+            debug_info = info.get("debug_info", {})
+
+            if end_time < begin_time:
+                continue
+
+            slice_info = PerfettoSliceInfo(type, begin_time, end_time, name, debug_info)
+            slice_info_list = slice_info_v2_map.get(type) or []
+            slice_info_list.append(slice_info)
+            slice_info_v2_map[type] = slice_info_list
+    
+    slice_info_map.update(slice_info_v2_map)
+
+    def slice_info_key(slice_info: PerfettoSliceInfo):
+        return slice_info.begin_time
+
+    for _, slice_info_list in slice_info_v2_map.items():
+        slice_info_list.sort(key=slice_info_key)
+        
+        for item in slice_info_list:
+            item: PerfettoSliceInfo = item
+            item.begin_time -= trace_start_time
+            item.end_time -= trace_start_time
+            if item.begin_time < 0:
+                item.begin_time = 0
+            if item.end_time < 0:
+                item.end_time = 0
 
     return slice_info_map, counter_info_map
 
@@ -2181,9 +2589,9 @@ def read_file(path: str) -> TraceRawContent:
     callstack_table = read_callstack_table(con, trace_id, version)
     thread_info_map = read_thread_info(con, trace_id, version)
     slice_info_map, counter_info_map = read_custome_perfetto_info(
-        con, trace_id, version
+        con, trace_id, version, trace_start_time
     )
-
+    
     cpu_sample_map = read_cpu_samples(con, trace_id, callstack_table, version)
     mem_sample_map = read_mem_samples(con, trace_id, callstack_table, version)
     async_sample_map = read_async_samples(con, trace_id, callstack_table, version)
@@ -2192,6 +2600,7 @@ def read_file(path: str) -> TraceRawContent:
     lock_sample_map = read_lock_samples(con, trace_id, callstack_table, version)
     profile_sample_map = read_profile_samples(con, trace_id, callstack_table, version)
     time_range_sample_map = read_time_range_samples(con, trace_id, callstack_table, version)
+    io_sample_map = read_io_samples(con, trace_id, callstack_table, version)
 
     total_cpu_sample_list: List[CPUSample] = []
     sample_map: Dict[int, List[CPUSample]] = {}
@@ -2231,6 +2640,24 @@ def read_file(path: str) -> TraceRawContent:
                 mem_sample.alloc_size,
                 mem_sample.alloc_count,
                 mem_sample.calls,
+            )
+            cpu_sample.type = "mem"
+            sample_list.append(cpu_sample)
+        sample_map[tid] = sample_list
+        
+    for tid, io_sample_list in io_sample_map.items():
+        sample_list = sample_map.get(tid, [])
+        for io_sample in io_sample_list:
+            cpu_sample = CPUSample(
+                io_sample.tid,
+                io_sample.start_time,
+                io_sample.start_time,
+                io_sample.start_cpu_time,
+                io_sample.start_cpu_time,
+                io_sample.stack_id,
+                io_sample.alloc_size,
+                io_sample.alloc_count,
+                io_sample.calls,
             )
             cpu_sample.type = "mem"
             sample_list.append(cpu_sample)
@@ -2287,6 +2714,10 @@ def read_file(path: str) -> TraceRawContent:
                 lock_sample.calls,
             )
             cpu_sample.type = "lock"
+            
+            if lock_sample.unlock_contention_list:
+                cpu_sample.unlock_contention_list = lock_sample.unlock_contention_list
+
             sample_list.append(cpu_sample)
         sample_map[tid] = sample_list
         
@@ -2343,7 +2774,7 @@ def read_file(path: str) -> TraceRawContent:
                 val: CPUSample = thread_cpu_sample_map.values()[idx - 1]
 
                 if start_time == timestamp:
-                    diff_cpu_time = sample.start_cpu_time - val.start_cpu_time
+                    diff_cpu_time = max(sample.start_cpu_time - val.start_cpu_time, 100)
                     sample.start_time += diff_cpu_time
                     sample.end_time += diff_cpu_time
                     timestamp = sample.start_time

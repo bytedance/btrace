@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 from enum import Enum
 
 
@@ -72,10 +72,12 @@ class PerfettoCounterInfo:
 
 
 class PerfettoSliceInfo:
-    def __init__(self, type: str, begin_time: int, end_time: int):
+    def __init__(self, type: str, begin_time: int, end_time: int, name: str="", debug_info: Dict={}):
         self.type = type
+        self.name = name
         self.begin_time = begin_time
         self.end_time = end_time
+        self.debug_info = debug_info
 
 
 class AsyncSampleNode:
@@ -193,6 +195,9 @@ class LockAction(Enum):
     kUnfairTrylock = 20
     kUnfairLockContention = 21
     kUnfairUnlockContention = 22
+    kCondWaitCtn = 23
+    kCondSignalCtn = 24
+    kCondBroadcastCtn = 25
 
 
 class LockSampleNode:
@@ -239,6 +244,15 @@ class LockSample:
         self.calls: List[int] = []
         self.alloc_size = alloc_size
         self.alloc_count = alloc_count
+        self.unlock_contention_list: List[LockSample] = []
+        
+class LockContentionPair:
+
+    def __init__(self, id: int):
+        self.id = id
+        self.begin: LockSample = None
+        self.end: LockSample = None
+        self.unlock_contention_list: List[LockSample] = []
 
 
 class DateSample:
@@ -272,6 +286,51 @@ class DateSampleNode:
         self.stack_id = stack_id
         self.alloc_size = alloc_size
         self.alloc_count = alloc_count
+
+class IOSample:
+
+    def __init__(
+        self,
+        tid: int,
+        time: int,
+        cpu_time: int,
+        stack_id: int,
+        alloc_size: int,
+        alloc_count: int,
+        type: int,
+        size: int
+    ):
+        self.type = "io"
+        self.tid = tid
+        self.start_time = time
+        self.start_cpu_time = cpu_time
+        self.stack_id = stack_id
+        self.calls: List[int] = []
+        self.alloc_size = alloc_size
+        self.alloc_count = alloc_count
+        self.type = type
+        self.size = size
+
+
+class IOSampleNode:
+
+    def __init__(
+        self,
+        time: int,
+        cpu_time: int,
+        stack_id: int,
+        alloc_size: int,
+        alloc_count: int,
+        type: int,
+        size: int
+    ):
+        self.start_time = time
+        self.start_cpu_time = cpu_time
+        self.stack_id = stack_id
+        self.alloc_size = alloc_size
+        self.alloc_count = alloc_count
+        self.type = type
+        self.size = size
 
 
 class MemSample:
@@ -342,6 +401,7 @@ class CPUSample:
         self.alloc_size = alloc_size
         self.alloc_count = alloc_count
         self.calls: List[int] = calls
+        self.unlock_contention_list: List[LockSample] = []
 
 
 class IntervalSampleNode:
@@ -496,6 +556,7 @@ class MethodNode:
         self.alloc_count = end_alloc_count - start_alloc_count
         self.children: List[MethodNode] = []
         self.parent: MethodNode = None
+        self.unlock_contention_list: List[LockSample] = []
 
     def update_cpu_time(self, cpu_time):
         if self.end_cpu_time < cpu_time:
