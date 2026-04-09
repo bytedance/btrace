@@ -40,7 +40,7 @@ public final class HttpServer {
         return server;
     }
 
-    public static void start(File externalFileDir, String hostDirPath) {
+    public static void start(File[] externalFileDirs, String hostDirPath) {
         if (server != null && server.isAlive()) {
             Log.i(TAG, "stop previous server on port " + server.getListeningPort());
             server.stop();
@@ -49,24 +49,60 @@ public final class HttpServer {
         try {
             server.start();
             int port = server.getListeningPort();
-            makePortDir(externalFileDir, port);
+            publishPort(externalFileDirs, port);
             Log.i(TAG, "start new http server on port " + port);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            Log.e(TAG, "start http server failed", e);
+            server = null;
+        }
+    }
+
+    private static void publishPort(File[] externalFileDirs, int port) {
+        if (externalFileDirs == null) {
+            return;
+        }
+        for (File externalFileDir : externalFileDirs) {
+            if (externalFileDir != null) {
+                makePortDir(externalFileDir, port);
+            }
         }
     }
 
     private static void makePortDir(File externalFileDir, int port) {
         File portDir = new File(externalFileDir, "rhea-port");
-        if (!portDir.exists()) {
-            portDir.mkdirs();
+        if (!portDir.exists() && !portDir.mkdirs()) {
+            Log.w(TAG, "make port dir failed: " + portDir.getAbsolutePath());
+            return;
         }
         File[] ports = portDir.listFiles();
-        if (ports == null || ports.length == 0) {
-            File realPortDir = new File(portDir, String.valueOf(port));
-            realPortDir.mkdirs();
-        } else {
-            ports[0].renameTo(new File(portDir, String.valueOf(port)));
+        if (ports != null) {
+            for (File oldPort : ports) {
+                if (oldPort == null) {
+                    continue;
+                }
+                if (String.valueOf(port).equals(oldPort.getName())) {
+                    return;
+                }
+                deleteRecursively(oldPort);
+            }
+        }
+        File realPortDir = new File(portDir, String.valueOf(port));
+        if (!realPortDir.exists() && !realPortDir.mkdirs()) {
+            Log.w(TAG, "make real port dir failed: " + realPortDir.getAbsolutePath());
+        }
+    }
+
+    private static void deleteRecursively(File file) {
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        if (!file.delete()) {
+            Log.w(TAG, "delete stale port path failed: " + file.getAbsolutePath());
         }
     }
 
