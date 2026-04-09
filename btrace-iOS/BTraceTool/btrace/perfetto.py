@@ -152,6 +152,13 @@ def method_tree_to_trace(trace_packet_list: List[perfetto_pb2.TracePacket], thre
         "alloc_size": alloc_size,
         "alloc_count": alloc_count
     }
+    
+    if method_node.unlock_contention_list:
+        contention_tids = [str(x.tid) for x in method_node.unlock_contention_list]
+        debug_infos["locked_by"] = ", ".join(contention_tids)
+        debug_infos["lock_id"] = str(method_node.unlock_contention_list[0].id)
+        symbol_name = symbol_name + "(lock_contention)"
+
     start_packet = gen_slice_event_packet(thread_track.uuid, start_time, symbol_name, perfetto_pb2.TrackEvent.Type.TYPE_SLICE_BEGIN, debug_infos)
     trace_packet_list.append(start_packet)
     
@@ -195,15 +202,22 @@ def gen_perfetto_trace(method_tree_list: List[MethodTree],
             counter_event = gen_counter_event_packet(counter_track.uuid, time, val)
             trace_packet_list.append(counter_event)
             
-    for slice_name, v in slice_info_map.items():
+    for slice_type, v in slice_info_map.items():
         slice_info_list: List[PerfettoSliceInfo] = v
-        slice_packet = gen_sub_packet(auto_increase.get(), root_uuid, f"{slice_name}")
+        slice_packet = gen_sub_packet(auto_increase.get(), root_uuid, f"{slice_type}")
         trace_packet_list.append(slice_packet)
         
         for slice_info in slice_info_list:
+            slice_name: str = ""
+            if len(slice_info.name):
+                slice_name = slice_info.name
+            else:
+                slice_name = slice_type
+
+            debug_info = slice_info.debug_info
             slice_track = slice_packet.track_descriptor
             begin_time = slice_info.begin_time * 1000
-            start_packet = gen_slice_event_packet(slice_track.uuid, begin_time, slice_name, perfetto_pb2.TrackEvent.Type.TYPE_SLICE_BEGIN)
+            start_packet = gen_slice_event_packet(slice_track.uuid, begin_time, slice_name, perfetto_pb2.TrackEvent.Type.TYPE_SLICE_BEGIN, debug_info)
             trace_packet_list.append(start_packet)
             end_time = slice_info.end_time * 1000
             end_packet = gen_slice_event_packet(slice_track.uuid, end_time, slice_name, perfetto_pb2.TrackEvent.Type.TYPE_SLICE_END)
