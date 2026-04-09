@@ -217,8 +217,8 @@ bool SamplingDumper::dumpMapping(int fd) {
                         }
                     }
                 }
+                closedir(dir);
             }
-            closedir(dir);
             auto cost = current_boot_time_millis() - now;
             ALOGD("dump thread names cost %lums", cost);
         }
