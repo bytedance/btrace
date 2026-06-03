@@ -1,0 +1,12 @@
+{
+  "name": "@bytedance/btrace",
+  "version": "1.0.0",
+  "description": "btrace for open harmony",
+  "main": "Index.ets",
+  "author": "lishuaichao@bytedance.com",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "libbtrace.so": "file:./src/main/cpp/types/libbtrace",
+    "@cxy/webserver": "^2.0.1"
+  }
+}

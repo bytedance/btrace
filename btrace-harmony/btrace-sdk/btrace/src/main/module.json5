@@ -1,0 +1,10 @@
+{
+  "module": {
+    "name": "btrace",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet"
+    ]
+  }
+}

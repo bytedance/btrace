@@ -1,0 +1,107 @@
+/*
+ * Copyright (c) 2026 Bytedance Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+ext["mavenUsername"] = ''
+ext["mavenPassword"] = ''
+
+ext["RELEASE_URL"] = ''
+ext["SNAPSHOT_URL"] = ''
+ext["LOCAL_URL"] = ''
+
+File secretPropsFile = project.rootProject.file('local.properties')
+if (secretPropsFile.exists()) {
+    Properties p = new Properties()
+    p.load(new FileInputStream(secretPropsFile))
+    p.each { name, value ->
+        ext[name] = value
+    }
+} else {
+    println("unable to find local.properties!")
+}
+
+def isReleaseBuild() {
+    return !POM_VERSION_NAME.contains("SNAPSHOT")
+}
+
+def getSnapshotUrl() {
+    String localUrl = LOCAL_URL
+    if (localUrl != null && localUrl.length() > 0) {
+        return uri(localUrl)
+    }
+    return SNAPSHOT_URL
+}
+
+afterEvaluate { it ->
+    uploadArchives {
+        repositories {
+            mavenDeployer {
+
+                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+                pom.groupId = POM_GROUP_ID
+                pom.artifactId = POM_ARTIFACT_ID
+                pom.version = POM_VERSION_NAME
+
+                repository(url: RELEASE_URL) {
+                    authentication(userName: mavenUsername, password: mavenPassword)
+                }
+                snapshotRepository(url: getSnapshotUrl()) {
+                    authentication(userName: mavenUsername, password: mavenPassword)
+                }
+
+                pom.project {
+                    name POM_NAME
+                    packaging POM_PACKAGING
+                    description POM_DESCRIPTION
+                    url POM_URL
+
+                    scm {
+                        url POM_SCM_URL
+                        connection POM_SCM_CONNECTION
+                        developerConnection POM_SCM_DEV_CONNECTION
+                    }
+
+                    licenses {
+                        license {
+                            name POM_LICENCE_NAME
+                            url POM_LICENCE_URL
+                            distribution POM_LICENCE_DIST
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id POM_DEVELOPER_ID
+                            name POM_DEVELOPER_NAME
+                            email POM_DEVELOPER_EMAIL
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    signing {
+        required { isReleaseBuild() && gradle.taskGraph.hasTask("uploadArchives") }
+        sign configurations.archives
+    }
+}
+
+tasks.getByName("uploadArchives").dependsOn tasks.getByName("checkstyle")
+

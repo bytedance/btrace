@@ -1,0 +1,59 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/bytedance/.ohos/config/default_btrace-harmony_ER2vQT8WI11lkOEX02Un6GQGclv8B7R1-QAfFcBQan4=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BB3631AF17930418934EDFA59095D4F8FA796DE7F3E5E8AFAB2CFC4BBA5FA26AD720F6AAEAC9D44",
+          "profile": "/Users/bytedance/.ohos/config/default_btrace-harmony_ER2vQT8WI11lkOEX02Un6GQGclv8B7R1-QAfFcBQan4=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/bytedance/.ohos/config/default_btrace-harmony_ER2vQT8WI11lkOEX02Un6GQGclv8B7R1-QAfFcBQan4=.p12",
+          "storePassword": "0000001B88718BC51DC61FBA8401AD878506FE885BD08029ACDE836A4F469A0DB3D541A572AEB627CAB3F0"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.1(13)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      },
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "btrace",
+      "srcPath": "./btrace",
+    }
+  ]
+}
