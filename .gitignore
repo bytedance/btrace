@@ -7,3 +7,8 @@ local.properties
 **/output
 */.DS_Store
 .DS_Store
+
+# btrace for HarmonyOS
+btrace-harmony/**/.hvigor/
+btrace-harmony/**/build/
+btrace-harmony/**/oh_modules/

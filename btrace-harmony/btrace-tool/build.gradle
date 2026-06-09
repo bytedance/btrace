@@ -1,0 +1,86 @@
+/*
+ * Copyright (c) 2026 Bytedance Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    File secretPropsFile = project.rootProject.file('local.properties')
+    if (secretPropsFile.exists()) {
+        Properties p = new Properties()
+        p.load(new FileInputStream(secretPropsFile))
+        p.each { name, value ->
+            ext[name] = value
+        }
+    } else {
+        println("unable to find local.properties!")
+    }
+    repositories {
+        mavenLocal()
+        maven {
+            url BYTEDANCE_UGC_ANDROID
+        }
+        maven {
+            url BYTEDANCE_ANDROID
+        }
+        maven {
+            url SNAPSHOT_URL
+        }
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.10"
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+allprojects {
+    repositories {
+        mavenLocal()
+        maven {
+            url BYTEDANCE_UGC_ANDROID
+        }
+        maven {
+            url BYTEDANCE_ANDROID
+        }
+        maven {
+            url SNAPSHOT_URL
+        }
+        google()
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply from: rootProject.file('./gradle/checkStyle.gradle')
+}
+
+ext {
+    versions = [
+            'compileSdk': 30,
+            'buildTools': '30.0.2',
+            'minSdk'    : 21,
+            'targetSdk' : 30,
+            'ndkVersion': '21.1.6352462'
+            // 开启 ASAN 时用这个 ndk
+            // 'ndkVersion': '29.0.13599879'
+    ]
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

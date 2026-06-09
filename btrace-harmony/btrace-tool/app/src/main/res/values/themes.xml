@@ -1,0 +1,4 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.Jarvis" parent="android:Theme.DeviceDefault" />
+</resources>

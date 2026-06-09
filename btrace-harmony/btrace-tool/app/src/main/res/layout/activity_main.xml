@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <Button
+        android:id="@+id/user_sense"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="User Sense" />
+
+    <Button
+        android:id="@+id/frame_drop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="模拟丢帧事件" />
+
+    <Button
+        android:id="@+id/stop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="stop Binder Monitor" />
+
+    <Button
+        android:id="@+id/dump_anr"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="采集 ANR 数据" />
+
+    <Button
+        android:id="@+id/dump_types"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="桩点执行统计" />
+
+    <Button
+        android:id="@+id/cpu_high_load"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="测试 CPU 高负载" />
+
+    <Button
+        android:id="@+id/view_trace"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="测试 View Trace 采集" />
+
+    <Button
+        android:id="@+id/capture_main_from_child"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="子线程采集主线程堆栈" />
+
+    <Button
+        android:id="@+id/debug_native_trace"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="测试 Native Trace 采集" />
+    <Button
+        android:id="@+id/debug_ddpf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="测试 DDPF" />
+    <ListView
+        android:id="@+id/list_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:divider="@null"
+        android:dividerHeight="0dp" />
+
+</LinearLayout>

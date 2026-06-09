@@ -202,6 +202,36 @@ Multiple sub-buffers are used to parallelize thread writes, avoiding lock conten
 - Active Thread Filtering: Only sample non-idle threads to reduce overhead.
 - Safe Backtracing: Use vm_read_overwrite for invalid pointers while prioritizing direct memory reads for performance.
 
+## HarmonyOS Implementation
+
+With the rapid development of the HarmonyOS ecosystem, tracing capabilities for it have become crucial. btrace-harmony completely ports the btrace 3.0 synchronous backtracing solution—verified on Android and iOS—to HarmonyOS, deeply adapting it for the HarmonyOS runtime and the ArkTS/Native dual-language stack. This delivers the **industry's first high-performance tracing tool for HarmonyOS that can be run long-term on real devices**.
+
+### Backtracing Engine: Synchronous + Asynchronous
+
+**Synchronous Backtracing: Integrated ArkTS/Native Stack**
+
+On HarmonyOS, we utilize the official `HiDebug_Backtrace_Object` for unified stack unwinding. It can simultaneously unwind both ArkTS and Native frames based on a single frame pointer (`fp`), allowing us to penetrate the application and system layers end-to-end with a single API, without maintaining separate tracing logic for each language.
+
+**Asynchronous Backtracing: A Fallback for Synchronous "Sampling Gaps"**
+
+Synchronous backtracing relies on business code continuously passing through instrumentation points. When a thread stays in the same function for a long time or blocks on a slow system call, it won't trigger synchronous tracing points for extended periods. To address this, btrace-harmony uses a timer to periodically send real-time signals (`tgkill`) to target threads, performing a fallback backtrace inside the signal handler. Using a combined strategy of "sampling interval throttling + thread state filtering," each thread is sampled periodically at its own pace, while exited or voluntarily yielding threads are automatically skipped.
+
+### Transparent Slow Syscall Proxy
+
+Asynchronous backtracing is triggered by real-time signals, but these signals interrupt signal-unsafe system calls (like `epoll_wait`, `recv`, `nanosleep`) currently executing on the thread, causing them to return early with an `EINTR` error, which affects business stability.
+
+To solve this, btrace-harmony introduces `SlowSysCallProxy`, adding a transparent hook layer over common slow system calls. It **proactively blocks sampling signals** before entering these calls and restores the thread's original signal mask after the system call returns. Simultaneously, an active synchronous backtrace is performed at the entry and exit boundaries. This completely avoids interference from sampling signals on slow system calls and ensures that every long block on the trace can be accurately attributed.
+
+### Two-Stage Ring Buffer Pipeline Storage
+
+To handle the high concurrent write throughput of synchronous backtracing, btrace-harmony adopts a three-stage pipeline: "Frontend Concurrent Write → Backend Aggregation Storage → Node Sharing & Deduplication":
+
+1. **ConcurrentRingBuffer**: Drawing on the concept of multi-sub-buffer concurrent writing from the iOS implementation, multiple threads concurrently write raw PC sequences, distributing them to multiple sub-buffers via thread hashing, significantly mitigating write conflicts using a `try_lock` rotating bucket strategy.
+2. **CallstackTable**: Inserts raw stacks into a node table for structural deduplication, obtaining a shared stack ID.
+3. **TraceRingBuffer**: After deduplication, fixed-size small records containing timestamps, CPU Time, thread IDs, and stack IDs are overwritten into a backend ring buffer based on temporal similarity.
+
+This storage architecture completely decouples "raw stack writing" from "slimmed-down storage," keeping memory usage at extremely low levels during prolonged data collection.
+
 ## Trace Visualization
 
 Both platforms use Perfetto for visualization, similar to Android's Debug.startMethodTracingSampling. The core logic compares consecutive stacks to compute function execution times by tracking stack differences.
@@ -356,9 +386,9 @@ bool Monitor_MonitorExit(void *self, void *obj) {
 
 # Future Roadmap
 
-1. Enhanced Capabilities: Add Native (C/C++) tracing on Android and GPU rendering tracing on both platforms.
-2. Online Support: Enable tracing for online performance issues.
-3. Ecosystem Building: Develop automated performance diagnosis tools around btrace.
-4. Cross-Platform: Add HarmonyOS and Web support.
+1. **Enhanced Capabilities**: Add Native (C/C++) tracing on Android and GPU rendering tracing on both platforms.
+2. **Online Support**: Enable tracing for online performance issues.
+3. **Ecosystem Building**: Develop automated performance diagnosis tools around btrace, providing an end-to-end "Tracing as Diagnosis" experience.
+4. **AI Empowerment**: Introduce AI for Trace analysis and issue fixing, automatically locating root causes and generating fix suggestions based on large models.
 
 Finally, welcome everyone to discuss and exchange ideas at any time, and work together to build the ultimate btrace tool!
